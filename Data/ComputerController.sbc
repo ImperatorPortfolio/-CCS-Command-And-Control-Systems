@@ -14,7 +14,7 @@
       <BlockTopology>TriangleMesh</BlockTopology>
       <Size x="1" y="1" z="1" />
       <ModelOffset x="0" y="0" z="0" />
-      <Model>Models\darth_biomech\AI_core_mini.mwm</Model>
+      <Model>Models\Cubes\small\SmallProgrammableBlock.mwm</Model>
       <Components>
         <Component Subtype="SteelPlate" Count="1" />
         <Component Subtype="Construction" Count="2" />
@@ -32,10 +32,6 @@
         <MountPoint Side="Left" StartX="0" StartY="0" EndX="2" EndY="2" />
         <MountPoint Side="Right" StartX="0" StartY="0" EndX="2" EndY="2" />
       </MountPoints>
-      <BuildProgressModels>
-        <Model BuildPercentUpperBound="0.40" File="Models\darth_biomech\AI_core_mini_progress_01.mwm" />
-        <Model BuildPercentUpperBound="1.00" File="Models\darth_biomech\AI_core_mini_progress_02.mwm" />
-      </BuildProgressModels>
       <BlockPairName>ComputerController</BlockPairName>
       <MirroringY>X</MirroringY>
       <MirroringX>Y</MirroringX>
@@ -68,7 +64,7 @@
       <BlockTopology>TriangleMesh</BlockTopology>
       <Size x="1" y="1" z="1" />
       <ModelOffset x="0" y="0" z="0" />
-      <Model>Models\darth_biomech\AI_core.mwm</Model>
+      <Model>Models\Cubes\large\LargeProgrammableBlock.mwm</Model>
       <Components>
         <Component Subtype="InteriorPlate" Count="10" />
         <Component Subtype="Construction" Count="20" />
@@ -86,18 +82,9 @@
         <MountPoint Side="Left" StartX="0" StartY="0" EndX="1" EndY="1" />
         <MountPoint Side="Right" StartX="0" StartY="0" EndX="1" EndY="1" />
       </MountPoints>
-      <BuildProgressModels>
-        <Model BuildPercentUpperBound="0.24" File="Models\darth_biomech\AI_core_progress_01.mwm" />
-        <Model BuildPercentUpperBound="0.40" File="Models\darth_biomech\AI_core_progress_02.mwm" />
-        <Model BuildPercentUpperBound="0.50" File="Models\darth_biomech\AI_core_progress_03.mwm" />
-        <Model BuildPercentUpperBound="0.82" File="Models\darth_biomech\AI_core_progress_04.mwm" />
-        <Model BuildPercentUpperBound="0.85" File="Models\darth_biomech\AI_core_progress_05.mwm" />
-        <Model BuildPercentUpperBound="1.00" File="Models\darth_biomech\AI_core_progress_06.mwm" />
-      </BuildProgressModels>
       <ScreenAreas>
         <ScreenArea Name="ScreenArea" DisplayName="DisplayName_Screen_Large" TextureResolution="512" ScreenWidth="1" ScreenHeight="1" />
-        <ScreenArea Name="CockpitScreen_01" DisplayName="DisplayName_Screen_Small" TextureResolution="512" ScreenWidth="1" ScreenHeight="1" />
-        <ScreenArea Name="CockpitScreen_02" DisplayName="DisplayName_Screen_Keyboard" TextureResolution="256" ScreenWidth="11" ScreenHeight="4" />
+        <ScreenArea Name="Editor" DisplayName="DisplayName_Screen_Keyboard" TextureResolution="256" ScreenWidth="11" ScreenHeight="4" />
       </ScreenAreas>
       <BlockPairName>ComputerController</BlockPairName>
       <MirroringY>X</MirroringY>
