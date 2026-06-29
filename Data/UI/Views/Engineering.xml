@@ -1,0 +1,56 @@
+<View>
+  <Border background="{bg1}" border="{border}" borderThickness="1" padding="6">
+    <Grid rows="34,*" columns="*">
+      <SectionHeader row="0" title="{title}" detail="{detail}" style="section" />
+      <Grid row="1" rows="*" columns="0.24*,0.52*,0.24*" clip="true">
+        <Grid column="0" rows="34,34,34,34,34,34,34,18,42,42,42,*" columns="*" clip="true" margin="0,0,6,0">
+          <SectionHeader row="0" title="SIDEBAR" detail="Engineering sections" style="section" />
+          <Button row="1" text="{nav1}" scale="0.42" alignment="Left" command="SelectEngineeringSubpage" commandData="Power" />
+          <Button row="2" text="{nav2}" scale="0.42" alignment="Left" command="SelectEngineeringSubpage" commandData="Hydrogen" />
+          <Button row="3" text="{nav3}" scale="0.42" alignment="Left" command="SelectEngineeringSubpage" commandData="Batteries" />
+          <Button row="4" text="{nav4}" scale="0.42" alignment="Left" command="SelectEngineeringSubpage" commandData="Reactors" />
+          <Button row="5" text="{nav5}" scale="0.42" alignment="Left" command="SelectEngineeringSubpage" commandData="Conveyors" />
+          <Button row="6" text="{nav6}" scale="0.42" alignment="Left" command="SelectEngineeringSubpage" commandData="Damage" />
+          <MetricBar row="8" label="{metric1Label}" valueText="{metric1Value}" ratio="{metric1Ratio}" fillColor="{success}" />
+          <MetricBar row="9" label="{metric2Label}" valueText="{metric2Value}" ratio="{metric2Ratio}" fillColor="{accent}" />
+          <MetricBar row="10" label="{metric3Label}" valueText="{metric3Value}" ratio="{metric3Ratio}" fillColor="{warning}" />
+          <Text row="11" text="{detailsSummary}" scale="0.36" color="{muted}" />
+        </Grid>
+        <Grid column="1" rows="34,0.42*,48,0.40*" columns="*" clip="true" margin="6,0,6,0">
+          <SectionHeader row="0" title="{bodyTitle}" detail="{bodyDetail}" style="section" />
+          <CustomVisual row="1" visual="PowerBoard" />
+          <Grid row="2" rows="*" columns="0.166*,0.166*,0.166*,0.166*,0.166*,0.166*" margin="0,8,0,8">
+            <Button column="0" text="{item1Text}" scale="0.34" command="SelectEngineeringNode" commandData="{item1Data}" />
+            <Button column="1" text="{item2Text}" scale="0.34" command="SelectEngineeringNode" commandData="{item2Data}" />
+            <Button column="2" text="{item3Text}" scale="0.34" command="SelectEngineeringNode" commandData="{item3Data}" />
+            <Button column="3" text="{item4Text}" scale="0.34" command="SelectEngineeringNode" commandData="{item4Data}" />
+            <Button column="4" text="{item5Text}" scale="0.34" command="SelectEngineeringNode" commandData="{item5Data}" />
+            <Button column="5" text="{item6Text}" scale="0.34" command="SelectEngineeringNode" commandData="{item6Data}" />
+          </Grid>
+          <Grid row="3" rows="*" columns="0.25*,0.25*,0.25*,0.25*" margin="0,0,0,0">
+            <ValueTile column="0" caption="{tile1Caption}" value="{tile1Value}" />
+            <ValueTile column="1" caption="{tile2Caption}" value="{tile2Value}" />
+            <ValueTile column="2" caption="{tile3Caption}" value="{tile3Value}" />
+            <ValueTile column="3" caption="{tile4Caption}" value="{tile4Value}" />
+          </Grid>
+        </Grid>
+        <Grid column="2" rows="34,34,30,30,30,30,32,32,32,32,40,40,40,*" columns="*" clip="true" margin="6,0,0,0">
+          <SectionHeader row="0" title="DETAILS" detail="Control / context" style="section" />
+          <Text row="1" text="{detailsTitle}" scale="0.42" color="{fg}" />
+          <Text row="2" text="{detailsState}" scale="0.38" color="{fg}" />
+          <Text row="3" text="{detailsLine1}" scale="0.34" color="{muted}" />
+          <Text row="4" text="{detailsLine2}" scale="0.34" color="{muted}" />
+          <Text row="5" text="{detailsLine3}" scale="0.34" color="{muted}" />
+          <StatusBadge row="6" label="{powerStatusLabel}" value="{powerStatusValue}" valueColor="{powerStatusColor}" />
+          <StatusBadge row="7" label="{selectedEnabledLabel}" value="{selectedEnabledValue}" valueColor="{selectedEnabledColor}" />
+          <StatusBadge row="8" label="{selectedFunctionalLabel}" value="{selectedFunctionalValue}" valueColor="{selectedFunctionalColor}" />
+          <StatusBadge row="9" label="{logisticsStatusLabel}" value="{logisticsStatusValue}" valueColor="{logisticsStatusColor}" />
+          <Button row="10" text="ENABLE" scale="0.42" command="RunEngineeringCommand" commandData="enable" />
+          <Button row="11" text="DISABLE" scale="0.42" command="RunEngineeringCommand" commandData="disable" />
+          <Button row="12" text="TOGGLE" scale="0.42" command="RunEngineeringCommand" commandData="toggle" />
+          <MetricBar row="13" label="{batteryMetricLabel}" valueText="{batteryMetricValue}" ratio="{batteryMetricRatio}" fillColor="{accent}" />
+        </Grid>
+      </Grid>
+    </Grid>
+  </Border>
+</View>

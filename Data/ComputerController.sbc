@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <CubeBlocks>
+    <Definition xsi:type="MyObjectBuilder_EmotionControllerBlockDefinition">
+      <Id>
+        <TypeId>EmotionControllerBlock</TypeId>
+        <SubtypeId>ComputerControllerSmall</SubtypeId>
+      </Id>
+      <Public>true</Public>
+      <DisplayName>Command Core</DisplayName>
+      <Icon>Textures\darth_biomech\GUI\DarkMatterCoreS.dds</Icon>
+      <Description>Primary construct core. Screens require one core on the construct to boot the shell.</Description>
+      <CubeSize>Small</CubeSize>
+      <BlockTopology>TriangleMesh</BlockTopology>
+      <Size x="1" y="1" z="1" />
+      <ModelOffset x="0" y="0" z="0" />
+      <Model>Models\darth_biomech\AI_core_mini.mwm</Model>
+      <Components>
+        <Component Subtype="SteelPlate" Count="1" />
+        <Component Subtype="Construction" Count="2" />
+        <Component Subtype="Computer" Count="5" />
+        <Component Subtype="Construction" Count="1" />
+        <Component Subtype="Display" Count="1" />
+        <Component Subtype="BulletproofGlass" Count="1" />
+      </Components>
+      <CriticalComponent Subtype="Computer" Index="0" />
+      <MountPoints>
+        <MountPoint Side="Front" StartX="0" StartY="0" EndX="2" EndY="2" />
+        <MountPoint Side="Back" StartX="0" StartY="0" EndX="2" EndY="2" />
+        <MountPoint Side="Top" StartX="0" StartY="0" EndX="2" EndY="2" />
+        <MountPoint Side="Bottom" StartX="0" StartY="0" EndX="2" EndY="2" Default="true" />
+        <MountPoint Side="Left" StartX="0" StartY="0" EndX="2" EndY="2" />
+        <MountPoint Side="Right" StartX="0" StartY="0" EndX="2" EndY="2" />
+      </MountPoints>
+      <BuildProgressModels>
+        <Model BuildPercentUpperBound="0.40" File="Models\darth_biomech\AI_core_mini_progress_01.mwm" />
+        <Model BuildPercentUpperBound="1.00" File="Models\darth_biomech\AI_core_mini_progress_02.mwm" />
+      </BuildProgressModels>
+      <BlockPairName>ComputerController</BlockPairName>
+      <MirroringY>X</MirroringY>
+      <MirroringX>Y</MirroringX>
+      <EdgeType>Light</EdgeType>
+      <BuildTimeSeconds>8</BuildTimeSeconds>
+      <MaxScreenRenderDistance>60</MaxScreenRenderDistance>
+      <RequiredPowerInput>0.0001</RequiredPowerInput>
+      <TextureResolution>512</TextureResolution>
+      <ScreenAreas>
+        <ScreenArea Name="ScreenArea" DisplayName="DisplayName_Screen_Large" TextureResolution="256" ScreenWidth="1" ScreenHeight="1" />
+      </ScreenAreas>
+      <ResourceSinkGroup>Utility</ResourceSinkGroup>
+      <DamageEffectName>Damage_Electrical_Damaged</DamageEffectName>
+      <DamagedSound>ParticleElectrical</DamagedSound>
+      <DestroyEffect>BlockDestroyedExplosion_Tiny</DestroyEffect>
+      <DestroySound>WepSmallWarheadExpl</DestroySound>
+      <PCU>120</PCU>
+      <IsAirTight>true</IsAirTight>
+    </Definition>
+    <Definition xsi:type="MyObjectBuilder_EmotionControllerBlockDefinition">
+      <Id>
+        <TypeId>EmotionControllerBlock</TypeId>
+        <SubtypeId>ComputerControllerLarge</SubtypeId>
+      </Id>
+      <Public>true</Public>
+      <DisplayName>Command Core</DisplayName>
+      <Icon>Textures\darth_biomech\GUI\DarkMatterCoreL.dds</Icon>
+      <Description>Primary construct core. Screens require one core on the construct to boot the shell.</Description>
+      <CubeSize>Large</CubeSize>
+      <BlockTopology>TriangleMesh</BlockTopology>
+      <Size x="1" y="1" z="1" />
+      <ModelOffset x="0" y="0" z="0" />
+      <Model>Models\darth_biomech\AI_core.mwm</Model>
+      <Components>
+        <Component Subtype="InteriorPlate" Count="10" />
+        <Component Subtype="Construction" Count="20" />
+        <Component Subtype="Computer" Count="20" />
+        <Component Subtype="Construction" Count="10" />
+        <Component Subtype="Display" Count="12" />
+        <Component Subtype="BulletproofGlass" Count="6" />
+      </Components>
+      <CriticalComponent Subtype="Computer" Index="0" />
+      <MountPoints>
+        <MountPoint Side="Front" StartX="0" StartY="0" EndX="1" EndY="1" />
+        <MountPoint Side="Back" StartX="0" StartY="0" EndX="1" EndY="1" />
+        <MountPoint Side="Top" StartX="0" StartY="0" EndX="1" EndY="1" />
+        <MountPoint Side="Bottom" StartX="0" StartY="0" EndX="1" EndY="1" Default="true" />
+        <MountPoint Side="Left" StartX="0" StartY="0" EndX="1" EndY="1" />
+        <MountPoint Side="Right" StartX="0" StartY="0" EndX="1" EndY="1" />
+      </MountPoints>
+      <BuildProgressModels>
+        <Model BuildPercentUpperBound="0.24" File="Models\darth_biomech\AI_core_progress_01.mwm" />
+        <Model BuildPercentUpperBound="0.40" File="Models\darth_biomech\AI_core_progress_02.mwm" />
+        <Model BuildPercentUpperBound="0.50" File="Models\darth_biomech\AI_core_progress_03.mwm" />
+        <Model BuildPercentUpperBound="0.82" File="Models\darth_biomech\AI_core_progress_04.mwm" />
+        <Model BuildPercentUpperBound="0.85" File="Models\darth_biomech\AI_core_progress_05.mwm" />
+        <Model BuildPercentUpperBound="1.00" File="Models\darth_biomech\AI_core_progress_06.mwm" />
+      </BuildProgressModels>
+      <ScreenAreas>
+        <ScreenArea Name="ScreenArea" DisplayName="DisplayName_Screen_Large" TextureResolution="512" ScreenWidth="1" ScreenHeight="1" />
+        <ScreenArea Name="CockpitScreen_01" DisplayName="DisplayName_Screen_Small" TextureResolution="512" ScreenWidth="1" ScreenHeight="1" />
+        <ScreenArea Name="CockpitScreen_02" DisplayName="DisplayName_Screen_Keyboard" TextureResolution="256" ScreenWidth="11" ScreenHeight="4" />
+      </ScreenAreas>
+      <BlockPairName>ComputerController</BlockPairName>
+      <MirroringY>X</MirroringY>
+      <MirroringX>Y</MirroringX>
+      <EdgeType>Light</EdgeType>
+      <BuildTimeSeconds>20</BuildTimeSeconds>
+      <MaxScreenRenderDistance>120</MaxScreenRenderDistance>
+      <RequiredPowerInput>0.0001</RequiredPowerInput>
+      <TextureResolution>512</TextureResolution>
+      <ResourceSinkGroup>Utility</ResourceSinkGroup>
+      <DamageEffectName>Damage_Electrical_Damaged</DamageEffectName>
+      <DamagedSound>ParticleElectrical</DamagedSound>
+      <DestroyEffect>BlockDestroyedExplosion_Large</DestroyEffect>
+      <DestroySound>WepSmallWarheadExpl</DestroySound>
+      <PCU>120</PCU>
+      <IsAirTight>true</IsAirTight>
+    </Definition>
+  </CubeBlocks>
+</Definitions>

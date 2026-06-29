@@ -1,0 +1,42 @@
+<View>
+  <Border background="{bg1}" border="{border}" borderThickness="1" padding="6">
+    <Grid rows="34,*" columns="*">
+      <SectionHeader row="0" title="{title}" detail="{detail}" style="section" />
+      <Grid row="1" rows="*" columns="0.24*,0.52*,0.24*" clip="true">
+        <Grid column="0" rows="34,32,32,32,32,32,32,18,34,44,44,*" columns="*" clip="true" margin="0,0,6,0">
+          <SectionHeader row="0" title="SIDEBAR" detail="Security sections" style="section" />
+          <Text row="1" text="{nav1}" scale="0.44" color="{fg}" />
+          <Text row="2" text="{nav2}" scale="0.44" color="{fg}" />
+          <Text row="3" text="{nav3}" scale="0.44" color="{fg}" />
+          <Text row="4" text="{nav4}" scale="0.44" color="{fg}" />
+          <Text row="5" text="{nav5}" scale="0.44" color="{fg}" />
+          <Text row="6" text="{nav6}" scale="0.44" color="{fg}" />
+          <SectionHeader row="7" title="ACTIVE" detail="{detailsState}" style="section" />
+          <MetricBar row="8" label="{metric1Label}" valueText="{metric1Value}" ratio="{metric1Ratio}" fillColor="{success}" />
+          <MetricBar row="9" label="{metric2Label}" valueText="{metric2Value}" ratio="{metric2Ratio}" fillColor="{danger}" />
+          <Text row="10" text="{detailsSummary}" scale="0.38" color="{muted}" />
+        </Grid>
+        <Grid column="1" rows="34,*" columns="*" clip="true" margin="6,0,6,0">
+          <SectionHeader row="0" title="{bodyTitle}" detail="{bodyDetail}" style="section" />
+          <CustomVisual row="1" visual="OutlineMap" />
+        </Grid>
+        <Grid column="2" rows="34,30,30,30,40,40,40,40,40,40,44,40,40,*" columns="*" clip="true" margin="6,0,0,0">
+          <SectionHeader row="0" title="DETAILS" detail="Action / context" style="section" />
+          <Text row="1" text="{detailsLine1}" scale="0.4" color="{fg}" />
+          <Text row="2" text="{detailsLine2}" scale="0.36" color="{muted}" />
+          <Text row="3" text="{detailsLine3}" scale="0.36" color="{muted}" />
+          <Button row="4" text="VIEW  -" scale="0.44" command="CycleShipView" commandValue="-1" />
+          <Button row="5" text="VIEW  +" scale="0.44" command="CycleShipView" commandValue="1" />
+          <Button row="6" text="LAYER -" scale="0.44" command="AdjustShipLayer" commandValue="-1" />
+          <Button row="7" text="LAYER +" scale="0.44" command="AdjustShipLayer" commandValue="1" />
+          <Button row="8" text="ZOOM  -" scale="0.44" command="AdjustShipZoom" commandValue="-1" />
+          <Button row="9" text="ZOOM  +" scale="0.44" command="AdjustShipZoom" commandValue="1" />
+          <MetricBar row="10" label="{metric3Label}" valueText="{metric3Value}" ratio="{metric3Ratio}" fillColor="{warning}" />
+          <Button row="11" text="{action1}" scale="0.42" />
+          <Button row="12" text="{action2}" scale="0.42" />
+          <Text row="13" text="VIEW {viewLabel} | SLICE {layerLabel} | ZOOM {zoomLabel}" scale="0.34" color="{muted}" />
+        </Grid>
+      </Grid>
+    </Grid>
+  </Border>
+</View>
