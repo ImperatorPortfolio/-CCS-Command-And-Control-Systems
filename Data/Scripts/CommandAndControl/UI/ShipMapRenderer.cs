@@ -22,7 +22,15 @@ namespace AGS
         //   4 = pitch +90                       5 = pitch -90
         //   6 = pitch +90 then yaw 180          7 = pitch +90 then yaw +90
         //   8 = pitch +90 then yaw -90          9 = pitch -90 then yaw 180
-        private const int Slope2x1Calibration = 6;
+        // Base and tip share the same orientation; both use calibration 6.
+        private const int Slope2x1BaseCalibration = 6;
+        private const int Slope2x1TipCalibration = 6;
+
+        // DIAGNOSTIC: when true, greedy meshing is skipped for slope shapes and each block is
+        // drawn in its own colour (base = cyan, tip = orange, 1x1 slope = green, corner =
+        // magenta) so their individual orientation/placement is visible. Set false to return to
+        // the merged wireframe.
+        private const bool DebugSlopeShapes = false;
 
         private struct Corner
         {
@@ -74,6 +82,15 @@ namespace AGS
 
                 shapedCells.Add(Pack(block.MinX, block.MinY, block.MinZ));
                 CollectShapeEdges(block, occupied, cellOwner, ship.Blocks, shapeEdges);
+            }
+
+            // Greedy-mesh the 2x1 slopes: an edge shared by two adjacent slope blocks was
+            // emitted twice, so it is an interior seam and cancels; edges emitted once are the
+            // outline of the merged shape. (1x1 slope edges are already culled per-edge and are
+            // passed through untouched.)
+            if (!DebugSlopeShapes)
+            {
+                shapeEdges = MergeSharedEdges(shapeEdges);
             }
 
             var cornerIndex = new Dictionary<long, int>();
@@ -157,20 +174,40 @@ namespace AGS
                 UiRenderer.DrawLine(frame, origin, pa, pb, ShadeByDepth(context, t), 1f);
             }
 
-            // 4b) Draw the oriented slope/corner geometry in the same fit transform.
-            // DEBUG: only the 2x1 slopes are drawn in cyan; every other shape uses normal
-            // depth shading. If no cyan appears, the 2x1 blocks aren't being detected as 2x1
-            // (subtype name / single-cell mismatch) and are falling back to voxel cubes.
-            var debug2x1Color = new Color(90, 210, 255);
+            // 4b) Draw the slope/corner geometry in the same fit transform. Normally shaded by
+            // depth like the voxel hull; in DebugSlopeShapes mode each block type gets its own
+            // colour so orientation/placement can be inspected.
             for (var i = 0; i < shapeEdges.Count; i++)
             {
                 var se = shapeEdges[i];
                 var pa = new Vector2(centerX + ((se.SAx - modelCenterX) * scale), centerY - ((se.SAy - modelCenterY) * scale));
                 var pb = new Vector2(centerX + ((se.SBx - modelCenterX) * scale), centerY - ((se.SBy - modelCenterY) * scale));
                 Color color;
-                if (se.Is2x1)
+                var thickness = 1f;
+                if (DebugSlopeShapes)
                 {
-                    color = debug2x1Color;
+                    if (se.MarkerKind == 1)
+                    {
+                        // Forward marker: base = white, tip = red.
+                        color = se.Shape == ShipShapeId.Slope2x1Tip ? new Color(255, 60, 60) : new Color(255, 255, 255);
+                        thickness = 2.5f;
+                    }
+                    else if (se.MarkerKind == 2)
+                    {
+                        // Up marker: base = green, tip = yellow.
+                        color = se.Shape == ShipShapeId.Slope2x1Tip ? new Color(255, 240, 40) : new Color(60, 255, 60);
+                        thickness = 2.5f;
+                    }
+                    else
+                    {
+                        switch (se.Shape)
+                        {
+                            case ShipShapeId.Slope2x1: color = new Color(90, 210, 255); break;    // base = cyan
+                            case ShipShapeId.Slope2x1Tip: color = new Color(255, 170, 60); break; // tip = orange
+                            case ShipShapeId.Slope: color = new Color(120, 240, 120); break;      // 1x1 = green
+                            default: color = new Color(230, 120, 230); break;                     // corner = magenta
+                        }
+                    }
                 }
                 else
                 {
@@ -178,7 +215,7 @@ namespace AGS
                     color = ShadeByDepth(context, t);
                 }
 
-                UiRenderer.DrawLine(frame, origin, pa, pb, color, 1f);
+                UiRenderer.DrawLine(frame, origin, pa, pb, color, thickness);
             }
 
             // 5) Specialty-block icons, then security feature markers, over the wireframe.
@@ -352,7 +389,9 @@ namespace AGS
             public float SBx;
             public float SBy;
             public float SBd;
-            public bool Is2x1;
+            public ShipShapeId Shape;
+            // Diagnostic only: 0 = real edge, 1 = forward marker, 2 = up marker.
+            public int MarkerKind;
         }
 
         private static bool IsTemplatedShape(ShipShapeId shape)
@@ -402,7 +441,8 @@ namespace AGS
             var is2x1 = block.ShapeId == ShipShapeId.Slope2x1 || block.ShapeId == ShipShapeId.Slope2x1Tip;
             if (is2x1)
             {
-                ApplyCalibration(Slope2x1Calibration, ref rotRightI, ref rotUpI, ref rotFwdI);
+                var calibration = block.ShapeId == ShipShapeId.Slope2x1Tip ? Slope2x1TipCalibration : Slope2x1BaseCalibration;
+                ApplyCalibration(calibration, ref rotRightI, ref rotUpI, ref rotFwdI);
             }
 
             var right = new Vector3(rotRightI.X, rotRightI.Y, rotRightI.Z);
@@ -416,51 +456,123 @@ namespace AGS
                 world[i] = center + (verts[i].X * right) + (verts[i].Y * up) + (verts[i].Z * forward);
             }
 
+            // Greedy meshing: emit EVERY edge of the shape. A seam shared with a touching
+            // neighbour is emitted twice (once by each block) and cancels in MergeSharedEdges,
+            // so blocks in contact collapse into a single merged solid and only its outline
+            // survives. edgeFaces is no longer consulted — the merge is purely geometric.
             for (var e = 0; e + 1 < edgePairs.Length; e += 2)
             {
-                var faceA = edgeFaces[e];
-                var faceB = edgeFaces[e + 1];
-                bool draw;
+                var va = edgePairs[e];
+                var vb = edgePairs[e + 1];
 
-                if (faceA == 6 || faceB == 6)
+                // 2x1 ramp rails are the "horizontal" cross-lines that cut across the sloped
+                // face. They are useful only at the exposed start/end of a full ramp run. When
+                // another 2x1 slope continues the same plane, drop the rail here instead of
+                // relying on exact edge overlap, because the base->tip step happens one cell
+                // forward/back AND one cell up/down, so the two rails do not share the same
+                // world-space edge and MergeSharedEdges cannot cancel them.
+                if (ShouldCull2x1RampRail(block, va, vb, rotUpI, rotFwdI, cellOwner, blocks))
                 {
-                    var ortho = faceA == 6 ? faceB : faceA;
-                    var off = FaceOffset(ortho, rotRightI, rotUpI, rotFwdI);
-                    var neighborKey = Pack(block.MinX + off.X, block.MinY + off.Y, block.MinZ + off.Z);
-                    if (ortho == 0 || ortho == 1)
-                    {
-                        // Diagonal (triangle-side) edge — the line that makes a slope read as
-                        // a slope. Keep it against cubes, space, and differently-angled
-                        // slopes; hide it only where an identically-oriented slope continues
-                        // the same flat surface (a smooth ramp seam).
-                        draw = !IsSameOrientationNeighbor(neighborKey, block, cellOwner, blocks);
-                    }
-                    else
-                    {
-                        // Edge along a full base/back face — hide it when that face is buried
-                        // against any solid (e.g. a slope's back against the hull core).
-                        draw = FaceExposed(ortho, block, rotRightI, rotUpI, rotFwdI, occupied);
-                    }
-                }
-                else
-                {
-                    // Axis-aligned edge: keep it if either bordering face is open to space.
-                    draw = FaceExposed(faceA, block, rotRightI, rotUpI, rotFwdI, occupied)
-                        || FaceExposed(faceB, block, rotRightI, rotUpI, rotFwdI, occupied);
+                    continue;
                 }
 
-                if (draw)
-                {
-                    output.Add(new ShapeEdge { A = world[edgePairs[e]], B = world[edgePairs[e + 1]], Is2x1 = is2x1 });
-                }
+                output.Add(new ShapeEdge { A = world[va], B = world[vb], Shape = block.ShapeId });
+            }
+
+            // Diagnostic: mark each 2x1 block's calibrated forward AND up so base vs tip
+            // orientation (including any roll) is visible.
+            if (DebugSlopeShapes && is2x1)
+            {
+                output.Add(new ShapeEdge { A = center, B = center + (forward * 0.6f), Shape = block.ShapeId, MarkerKind = 1 });
+                output.Add(new ShapeEdge { A = center, B = center + (up * 0.6f), Shape = block.ShapeId, MarkerKind = 2 });
             }
         }
 
-        // True when the neighbouring cell belongs to a block of the same shape AND the same
-        // orientation — a continuation of this exact sloped surface, whose shared seam should
-        // not be drawn. (Differently-angled neighbours and cubes return false, so their
-        // creases stay.)
-        private static bool IsSameOrientationNeighbor(long neighborKey, ShipBlockGeometry block, Dictionary<long, int> cellOwner, List<ShipBlockGeometry> blocks)
+private static bool ShouldCull2x1RampRail(ShipBlockGeometry block, int va, int vb, Vector3I up, Vector3I forward, Dictionary<long, int> cellOwner, List<ShipBlockGeometry> blocks)
+{
+    if (block.ShapeId == ShipShapeId.Slope2x1)
+    {
+        // Base front/mid rail. Hide only if another same-facing slope continues below/forward.
+        // If nothing is there, keep it as the exposed bottom/start cap.
+        if (IsEdge(va, vb, 6, 7))
+        {
+            return IsSameFacingSlopeAt(
+                block.MinX + forward.X,
+                block.MinY + forward.Y,
+                block.MinZ + forward.Z,
+                block,
+                cellOwner,
+                blocks);
+        }
+
+        // Base back/top rail. Hide only if ramp continues two along and one up.
+        // If it meets a cube or empty space, keep it as the top/end cap.
+        if (IsEdge(va, vb, 4, 5))
+        {
+            return IsSameFacingSlopeAt(
+                block.MinX + up.X - (forward.X * 2),
+                block.MinY + up.Y - (forward.Y * 2),
+                block.MinZ + up.Z - (forward.Z * 2),
+                block,
+                cellOwner,
+                blocks);
+        }
+    }
+
+    if (block.ShapeId == ShipShapeId.Slope2x1Tip)
+    {
+        // Tip mid rail. Hide only if another same-facing slope continues into it.
+        if (IsEdge(va, vb, 4, 5))
+        {
+            return IsSameFacingSlopeAt(
+                block.MinX - forward.X,
+                block.MinY - forward.Y,
+                block.MinZ - forward.Z,
+                block,
+                cellOwner,
+                blocks);
+        }
+    }
+
+    return false;
+}
+
+        private static bool Is2x1ContinuationAt(int x, int y, int z, ShipBlockGeometry block, ShipShapeId expectedShape, Dictionary<long, int> cellOwner, List<ShipBlockGeometry> blocks)
+        {
+            int ownerIndex;
+            if (!cellOwner.TryGetValue(Pack(x, y, z), out ownerIndex) || ownerIndex < 0 || ownerIndex >= blocks.Count)
+            {
+                return false;
+            }
+
+            var neighbor = blocks[ownerIndex];
+            return neighbor != null
+                && neighbor.ShapeId == expectedShape
+                && neighbor.Forward == block.Forward
+                && neighbor.Up == block.Up;
+        }
+
+        private static bool IsSameFacingSlopeAt(int x, int y, int z, ShipBlockGeometry block, Dictionary<long, int> cellOwner, List<ShipBlockGeometry> blocks)
+{
+    int ownerIndex;
+    if (!cellOwner.TryGetValue(Pack(x, y, z), out ownerIndex) || ownerIndex < 0 || ownerIndex >= blocks.Count)
+    {
+        return false;
+    }
+
+    var neighbor = blocks[ownerIndex];
+    return neighbor != null
+        && neighbor.Forward == block.Forward
+        && neighbor.Up == block.Up
+        && IsSlopeFamily(neighbor.ShapeId);
+}
+
+        // True when the neighbouring cell continues this exact sloped surface: another
+        // slope-family block at the SAME orientation (same Forward and Up). This includes a
+        // base meeting its tip — together they form one straight 2:1 ramp, so their shared
+        // seam is interior and must not be drawn. Cubes, empty space, and differently oriented
+        // slopes all return false, so their creases/silhouettes stay.
+        private static bool IsContinuation(long neighborKey, ShipBlockGeometry block, Dictionary<long, int> cellOwner, List<ShipBlockGeometry> blocks)
         {
             int ownerIndex;
             if (!cellOwner.TryGetValue(neighborKey, out ownerIndex) || ownerIndex < 0 || ownerIndex >= blocks.Count)
@@ -470,9 +582,106 @@ namespace AGS
 
             var neighbor = blocks[ownerIndex];
             return neighbor != null
-                && neighbor.ShapeId == block.ShapeId
                 && neighbor.Forward == block.Forward
-                && neighbor.Up == block.Up;
+                && neighbor.Up == block.Up
+                && IsSlopeFamily(neighbor.ShapeId);
+        }
+
+        // Greedy meshing via edge cancellation, applied to every templated shape. Each block
+        // emitted all of its edges, so a seam shared with a touching neighbour was emitted twice
+        // and is interior — it cancels. An edge left over an odd number of times is part of the
+        // merged solid's outline and survives, drawn once. Endpoints land on the half-cell
+        // lattice, so a shared edge from two blocks maps to the exact same integer key.
+        private static List<ShapeEdge> MergeSharedEdges(List<ShapeEdge> input)
+        {
+            var counts = new Dictionary<EdgeKey, int>();
+            for (var i = 0; i < input.Count; i++)
+            {
+                var key = EdgeKeyOf(input[i]);
+                int c;
+                counts.TryGetValue(key, out c);
+                counts[key] = c + 1;
+            }
+
+            var result = new List<ShapeEdge>(input.Count);
+            var emitted = new HashSet<EdgeKey>();
+            for (var i = 0; i < input.Count; i++)
+            {
+                var se = input[i];
+                var key = EdgeKeyOf(se);
+                if ((counts[key] & 1) == 1 && emitted.Add(key))
+                {
+                    result.Add(se);
+                }
+            }
+
+            return result;
+        }
+
+        private static EdgeKey EdgeKeyOf(ShapeEdge se)
+        {
+            var a = CornerKey(se.A);
+            var b = CornerKey(se.B);
+            return a <= b ? new EdgeKey(a, b) : new EdgeKey(b, a);
+        }
+
+        private static long CornerKey(Vector3 p)
+        {
+            // Endpoints sit on the half-cell lattice; x2 makes them exact integers.
+            return Pack((int)Math.Round(p.X * 2f), (int)Math.Round(p.Y * 2f), (int)Math.Round(p.Z * 2f));
+        }
+
+        private struct EdgeKey : IEquatable<EdgeKey>
+        {
+            public readonly long A;
+            public readonly long B;
+
+            public EdgeKey(long a, long b)
+            {
+                A = a;
+                B = b;
+            }
+
+            public bool Equals(EdgeKey other)
+            {
+                return A == other.A && B == other.B;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is EdgeKey && Equals((EdgeKey)obj);
+            }
+
+            public override int GetHashCode()
+            {
+                return unchecked((A.GetHashCode() * 397) ^ B.GetHashCode());
+            }
+        }
+
+        private static bool IsSlopeFamily(ShipShapeId id)
+        {
+            return id == ShipShapeId.Slope
+                || id == ShipShapeId.Slope2x1
+                || id == ShipShapeId.Slope2x1Tip;
+        }
+
+        // Unordered match of an edge's two vertex indices.
+        private static bool IsEdge(int a, int b, int x, int y)
+        {
+            return (a == x && b == y) || (a == y && b == x);
+        }
+
+        // True if the given cell is owned by a slope-family block (base/tip/slope).
+        private static bool IsSlopeFamilyAt(Vector3I cell, Dictionary<long, int> cellOwner, List<ShipBlockGeometry> blocks)
+        {
+            int ownerIndex;
+            if (!cellOwner.TryGetValue(Pack(cell.X, cell.Y, cell.Z), out ownerIndex) || ownerIndex < 0 || ownerIndex >= blocks.Count)
+            {
+                return false;
+            }
+
+            var neighbor = blocks[ownerIndex];
+            return neighbor != null && IsSlopeFamily(neighbor.ShapeId);
         }
 
         // A face is exposed if it is the hypotenuse/cut (code 6) or the neighbouring cell in
@@ -557,8 +766,8 @@ namespace AGS
             switch (shape)
             {
                 case ShipShapeId.Slope: verts = SlopeVerts; edges = SlopeEdges; edgeFaces = SlopeEdgeFaces; return true;
-                case ShipShapeId.Slope2x1: verts = Slope2x1BaseVerts; edges = Slope2x1Edges; edgeFaces = Slope2x1EdgeFaces; return true;
-                case ShipShapeId.Slope2x1Tip: verts = Slope2x1TipVerts; edges = Slope2x1Edges; edgeFaces = Slope2x1EdgeFaces; return true;
+                case ShipShapeId.Slope2x1: verts = Slope2x1BaseVerts; edges = Slope2x1BaseEdges; edgeFaces = Slope2x1BaseEdgeFaces; return true;
+                case ShipShapeId.Slope2x1Tip: verts = Slope2x1TipVerts; edges = Slope2x1TipEdges; edgeFaces = Slope2x1TipEdgeFaces; return true;
                 case ShipShapeId.Corner: verts = CornerVerts; edges = CornerEdges; edgeFaces = CornerEdgeFaces; return true;
                 case ShipShapeId.InvertedCorner: verts = InvCornerVerts; edges = InvCornerEdges; edgeFaces = InvCornerEdgeFaces; return true;
                 default: verts = null; edges = null; edgeFaces = null; return false;
@@ -583,18 +792,23 @@ namespace AGS
         // 2 front-bottom-right.
         private static readonly int[] SlopeEdges =
         {
-            3, 4, 4, 5, 5, 2, 2, 3,
+            0, 1, 1, 2, 2, 3, 3, 0, // bottom square
+            0, 4, 1, 5, 4, 5,       // back verticals + top edge
+            3, 4, 2, 5,             // slanted-face side edges
         };
 
         // Face codes per edge (0:-right 1:+right 2:-up 3:+up 4:-forward 5:+forward 6:always).
         // Left/right edges are seams shared with side neighbours (hide where an identical
         // slope continues); top/bottom edges always draw so the rectangle stays complete.
+        // Single-direction culling: each edge hides only when a block continues past it in
+        // that one direction (bottom -> deck below, back -> behind), so verticals survive
+        // only at real angle changes. Slanted-face sides use same-orientation cull (keep
+        // octagon facets, merge wide ramps).
         private static readonly int[] SlopeEdgeFaces =
         {
-            0, 6, // left edge  -> same-orientation cull against the -right neighbour
-            6, 6, // top edge   -> always draw
-            1, 6, // right edge -> same-orientation cull against the +right neighbour
-            6, 6, // bottom edge-> always draw
+            2, 6, 2, 6, 2, 6, 2, 6, // bottom edges -> cull against the deck below
+            4, 6, 4, 6, 4, 6,       // back verticals + top edge -> cull against what's behind
+            0, 6, 1, 6,             // slanted-face sides -> same-orientation cull
         };
 
         // 2x1 slopes are single cells whose slanted face is a shallow (2:1) parallelogram.
@@ -602,34 +816,60 @@ namespace AGS
         // +forward). Base: back-top down to mid-height at the front. Tip: back at mid-height
         // down to the bottom at the front. Corners ordered front-left, back-left, back-right,
         // front-right so the edge/face tables below match the basic slope's.
+        // Base full wedge: bottom square + slanted face (back-top down to front-mid) + back
+        // verticals (full height) + front verticals (to mid height).
         private static readonly Vector3[] Slope2x1BaseVerts =
         {
-            new Vector3(-0.5f, 0.0f, 0.5f),   // 0 front-left  (mid height)
-            new Vector3(-0.5f, 0.5f, -0.5f),  // 1 back-top-left
-            new Vector3(0.5f, 0.5f, -0.5f),   // 2 back-top-right
-            new Vector3(0.5f, 0.0f, 0.5f),    // 3 front-right (mid height)
+            new Vector3(-0.5f, -0.5f, -0.5f), // 0 back-bottom-left
+            new Vector3(0.5f, -0.5f, -0.5f),  // 1 back-bottom-right
+            new Vector3(0.5f, -0.5f, 0.5f),   // 2 front-bottom-right
+            new Vector3(-0.5f, -0.5f, 0.5f),  // 3 front-bottom-left
+            new Vector3(-0.5f, 0.5f, -0.5f),  // 4 back-top-left
+            new Vector3(0.5f, 0.5f, -0.5f),   // 5 back-top-right
+            new Vector3(-0.5f, 0.0f, 0.5f),   // 6 front-mid-left
+            new Vector3(0.5f, 0.0f, 0.5f),    // 7 front-mid-right
         };
 
+        private static readonly int[] Slope2x1BaseEdges =
+        {
+            0, 1, 1, 2, 2, 3, 3, 0, // bottom square
+            4, 5, 5, 7, 7, 6, 6, 4, // slanted face
+            0, 4, 1, 5,             // back verticals (full height)
+            3, 6, 2, 7,             // front verticals (to mid)
+        };
+
+        private static readonly int[] Slope2x1BaseEdgeFaces =
+        {
+            2, 6, 2, 6, 2, 6, 2, 6, // bottom -> cull against the deck below
+            4, 6, 1, 6, 5, 6, 0, 6, // slanted face: back rail / right diag / front rail / left diag
+            4, 6, 4, 6,             // back verticals -> cull against what's behind (up the run)
+            5, 6, 5, 6,             // front verticals -> cull against the next block down the run
+        };
+
+        // Tip full wedge: bottom square + slanted face (back-mid down to front-bottom) + back
+        // verticals (to mid height). The front-bottom edge is shared with the bottom square.
         private static readonly Vector3[] Slope2x1TipVerts =
         {
-            new Vector3(-0.5f, -0.5f, 0.5f),  // 0 front-left  (bottom)
-            new Vector3(-0.5f, 0.0f, -0.5f),  // 1 back-left   (mid height)
-            new Vector3(0.5f, 0.0f, -0.5f),   // 2 back-right  (mid height)
-            new Vector3(0.5f, -0.5f, 0.5f),   // 3 front-right (bottom)
+            new Vector3(-0.5f, -0.5f, -0.5f), // 0 back-bottom-left
+            new Vector3(0.5f, -0.5f, -0.5f),  // 1 back-bottom-right
+            new Vector3(0.5f, -0.5f, 0.5f),   // 2 front-bottom-right
+            new Vector3(-0.5f, -0.5f, 0.5f),  // 3 front-bottom-left
+            new Vector3(-0.5f, 0.0f, -0.5f),  // 4 back-mid-left
+            new Vector3(0.5f, 0.0f, -0.5f),   // 5 back-mid-right
         };
 
-        private static readonly int[] Slope2x1Edges =
+        private static readonly int[] Slope2x1TipEdges =
         {
-            0, 1, 1, 2, 2, 3, 3, 0,
+            0, 1, 1, 2, 2, 3, 3, 0, // bottom square
+            4, 5, 5, 2, 3, 4,       // slanted face (front-bottom edge shared with bottom)
+            0, 4, 1, 5,             // back verticals (to mid height)
         };
 
-        // Left/right edges are side seams (same-orientation cull); top/bottom always draw.
-        private static readonly int[] Slope2x1EdgeFaces =
+        private static readonly int[] Slope2x1TipEdgeFaces =
         {
-            0, 6, // left edge
-            6, 6, // top/back edge
-            1, 6, // right edge
-            6, 6, // bottom/front edge
+            2, 6, 2, 6, 2, 6, 2, 6, // bottom -> cull against the deck below
+            4, 6, 1, 6, 0, 6,       // slanted face: back rail / right diag / left diag
+            4, 6, 4, 6,             // back verticals -> cull against the block behind (up the run)
         };
 
         // Corner tetrahedron: right-angle corner at (-right,-up,-forward); slanted face out.

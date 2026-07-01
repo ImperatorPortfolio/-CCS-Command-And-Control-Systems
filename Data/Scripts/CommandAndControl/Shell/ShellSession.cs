@@ -6,11 +6,27 @@ namespace AGS
     {
         private const int TicksPerMinute = 360;
 
+        private bool _startupApplied;
+
         public ShellSession(string key, IMyCubeBlock block, Sandbox.ModAPI.IMyTextSurface surface)
         {
             Key = key;
             State = new ShellState();
             Bind(block, surface);
+        }
+
+        public bool StartupApplied { get { return _startupApplied; } }
+
+        // Opens the station's saved preferred page once, after persisted storage has loaded.
+        // ResetShell runs at register time (before storage loads) and would otherwise leave
+        // the screen on the default page even when a choice was saved.
+        public void ApplyStartupPage(StationState station)
+        {
+            _startupApplied = true;
+            if (station != null && !string.IsNullOrEmpty(station.PreferredAppId))
+            {
+                State.ActiveAppId = station.PreferredAppId;
+            }
         }
 
         public string Key { get; private set; }

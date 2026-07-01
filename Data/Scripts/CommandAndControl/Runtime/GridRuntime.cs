@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI;
 using VRage.Game.Components;
 using VRage.Game.ModAPI;
@@ -94,6 +95,11 @@ namespace AGS
 
                 var station = GetOrCreateStation(pair.Key);
                 pair.Value.SyncStation(station);
+                if (_storageLoaded && !pair.Value.StartupApplied)
+                {
+                    // Storage is now loaded, so open the saved preferred page (once).
+                    pair.Value.ApplyStartupPage(station);
+                }
                 pair.Value.UpdateBoot(HasControllers);
             }
 
@@ -549,9 +555,12 @@ namespace AGS
                 return;
             }
 
+            // A block's Storage component is null until we create it. Without this the write
+            // below is silently dropped and NOTHING persists across reloads (station page,
+            // always-on, timeout). Creating it here makes the settings survive save/reload.
             if (primary.Storage == null)
             {
-                return;
+                primary.Storage = new MyModStorageComponent();
             }
 
             primary.Storage[StorageKey] = SerializeStations();
