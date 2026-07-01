@@ -175,6 +175,24 @@ namespace AGS
             }
         }
 
+        // True when the local view is aimed at one of this construct's screens, so the
+        // session can suppress the game's click-to-open-terminal behaviour.
+        public bool IsEngaged
+        {
+            get
+            {
+                foreach (var state in _states.Values)
+                {
+                    if (state.IsActive)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
         public void Clear()
         {
             _screens.Clear();

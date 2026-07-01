@@ -10,9 +10,14 @@ namespace AGS
             PendingAlwaysOn = true;
             TimeoutMinutes = 5;
             PendingTimeoutMinutes = 5;
+            InputBuffer = string.Empty;
+            Gallery = new GalleryState();
+            DemoProgram = new DemoProgramState();
         }
 
         public BootState Boot { get; private set; }
+        public GalleryState Gallery { get; private set; }
+        public DemoProgramState DemoProgram { get; private set; }
         public string ActiveAppId { get; set; }
         public bool StartMenuOpen { get; set; }
         public int StartMenuPage { get; set; }
@@ -23,5 +28,6 @@ namespace AGS
         public int TimeoutMinutes { get; set; }
         public int PendingTimeoutMinutes { get; set; }
         public int IdleTicks { get; set; }
+        public string InputBuffer { get; set; }
     }
 }

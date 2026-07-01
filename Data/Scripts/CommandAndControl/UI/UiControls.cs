@@ -30,6 +30,7 @@ namespace AGS
         public float Scale { get; set; }
         public bool IsHovered { get; set; }
         public bool IsPressed { get; set; }
+        public bool IsDisabled { get; set; }
         public Color Background { get; set; }
         public Color HoverBackground { get; set; }
         public Color PressedBackground { get; set; }

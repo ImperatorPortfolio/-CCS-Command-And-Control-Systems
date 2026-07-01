@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Sandbox.Game.GameSystems.TextSurfaceScripts;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
@@ -119,6 +120,9 @@ namespace AGS
     public sealed class FocusManager
     {
         public string FocusKey { get; private set; }
+        public string CaptureKey { get; private set; }
+
+        public bool IsCapturing { get { return !string.IsNullOrEmpty(CaptureKey); } }
 
         public void Focus(string focusKey)
         {
@@ -133,6 +137,18 @@ namespace AGS
         public void Clear()
         {
             FocusKey = string.Empty;
+        }
+
+        // Pointer capture lives here (not on the view) because the view tree is
+        // rebuilt every frame while this manager persists across frames.
+        public void Capture(string captureKey)
+        {
+            CaptureKey = captureKey ?? string.Empty;
+        }
+
+        public void ReleaseCapture()
+        {
+            CaptureKey = string.Empty;
         }
     }
 
@@ -163,51 +179,103 @@ namespace AGS
 
     public sealed class UiView
     {
+        // Floating layers (dialogs, popups, tooltips, notifications) arranged to the full
+        // viewport, drawn after Root and hit-tested before it. Last added = top-most.
+        private readonly List<UiElement> _overlays = new List<UiElement>();
+
         public UiView(UiElement root)
         {
             Root = root;
         }
 
         public UiElement Root { get; private set; }
+        public IList<UiElement> Overlays { get { return _overlays; } }
+
+        public void AddOverlay(UiElement overlay)
+        {
+            if (overlay != null)
+            {
+                _overlays.Add(overlay);
+            }
+        }
 
         public void Layout(UiContext context)
         {
-            if (Root == null)
+            if (Root != null)
             {
-                return;
+                Root.Measure(context.Viewport.Size, context);
+                Root.Arrange(context.Viewport, context);
+                Root.ApplyFocus(context.Focus);
             }
 
-            Root.Measure(context.Viewport.Size, context);
-            Root.Arrange(context.Viewport, context);
-            Root.ApplyFocus(context.Focus);
+            for (var i = 0; i < _overlays.Count; i++)
+            {
+                _overlays[i].Measure(context.Viewport.Size, context);
+                _overlays[i].Arrange(context.Viewport, context);
+                _overlays[i].ApplyFocus(context.Focus);
+            }
         }
 
         public void Render(MySpriteDrawFrame frame, Vector2 origin, UiContext context)
         {
-            if (Root == null)
+            if (Root != null)
             {
-                return;
+                Root.Render(frame, origin, context);
             }
 
-            Root.Render(frame, origin, context);
+            for (var i = 0; i < _overlays.Count; i++)
+            {
+                _overlays[i].Render(frame, origin, context);
+            }
         }
 
         public UiCommand HandleInput(UiContext context)
         {
-            if (Root == null)
+            if (Root == null && _overlays.Count == 0)
             {
                 return null;
             }
 
-            Root.ResetInputState();
-            Root.ApplyFocus(context.Focus);
+            if (Root != null)
+            {
+                Root.ResetInputState();
+                Root.ApplyFocus(context.Focus);
+            }
+
+            for (var i = 0; i < _overlays.Count; i++)
+            {
+                _overlays[i].ResetInputState();
+                _overlays[i].ApplyFocus(context.Focus);
+            }
+
+            var focus = context.Focus;
+
+            // End an active drag capture as soon as the pointer is released.
+            if (focus != null && focus.IsCapturing && !context.PointerPressed)
+            {
+                focus.ReleaseCapture();
+            }
+
+            // While a control holds capture, route the pointer straight to it so a
+            // drag keeps tracking even if the pointer briefly leaves its bounds.
+            if (focus != null && focus.IsCapturing && context.PointerPressed)
+            {
+                var captured = FindCaptured(focus.CaptureKey);
+                if (captured != null)
+                {
+                    captured.MarkPressed();
+                    return captured.OnDrag(context);
+                }
+
+                focus.ReleaseCapture();
+            }
 
             if (!context.PointerActive)
             {
                 return null;
             }
 
-            var hit = Root.HitTest(context.PointerLocal);
+            var hit = HitTestLayers(context.PointerLocal);
             if (hit != null)
             {
                 hit.MarkHovered();
@@ -251,6 +319,19 @@ namespace AGS
                 context.Focus.Clear();
             }
 
+            // Start pointer capture for draggable controls (slider, scroll bar, ...).
+            var captureTarget = hit;
+            while (captureTarget != null)
+            {
+                if (captureTarget.CapturesPointer && captureTarget.Focusable)
+                {
+                    context.Focus.Capture(captureTarget.GetFocusKey());
+                    break;
+                }
+
+                captureTarget = captureTarget.Parent;
+            }
+
             var target = hit;
             while (target != null)
             {
@@ -263,6 +344,35 @@ namespace AGS
             }
 
             return null;
+        }
+
+        // Overlays are top-most (last added first), then Root.
+        private UiElement HitTestLayers(Vector2 point)
+        {
+            for (var i = _overlays.Count - 1; i >= 0; i--)
+            {
+                var hit = _overlays[i].HitTest(point);
+                if (hit != null)
+                {
+                    return hit;
+                }
+            }
+
+            return Root != null ? Root.HitTest(point) : null;
+        }
+
+        private UiElement FindCaptured(string focusKey)
+        {
+            for (var i = _overlays.Count - 1; i >= 0; i--)
+            {
+                var found = _overlays[i].FindByFocusKey(focusKey);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+
+            return Root != null ? Root.FindByFocusKey(focusKey) : null;
         }
     }
 }

@@ -50,12 +50,16 @@ namespace AGS
 
     public enum ShipView
     {
+        // Orthographic 2D views (look straight down an axis).
         Top,
         Bottom,
         Left,
         Right,
         Front,
-        Back
+        Back,
+        // Angled axonometric ("perspective") views.
+        Iso,
+        IsoRear
     }
 
     public enum ShipShapeId
@@ -66,6 +70,37 @@ namespace AGS
         InvertedCorner,
         Slope2x1,
         Slope2x1Tip
+    }
+
+    // Recognised specialty (non-armour) systems, drawn as icons over the hull wireframe.
+    public enum ShipDeviceCategory
+    {
+        Thruster,
+        Reactor,
+        Battery,
+        Tank,
+        Controller,
+        Weapon,
+        Cargo,
+        Gyro,
+        Other
+    }
+
+    // A specialty block to mark on the map, positioned at its centre cell in model space.
+    public sealed class ShipDeviceMarker
+    {
+        public ShipDeviceMarker(ShipDeviceCategory category, float x, float y, float z)
+        {
+            Category = category;
+            X = x;
+            Y = y;
+            Z = z;
+        }
+
+        public ShipDeviceCategory Category { get; private set; }
+        public float X { get; private set; }
+        public float Y { get; private set; }
+        public float Z { get; private set; }
     }
 
     public sealed class ShipCell
@@ -130,33 +165,19 @@ namespace AGS
         }
     }
 
-    public sealed class ShipLinePrimitive
-    {
-        public ShipLinePrimitive(float ax, float ay, float bx, float by)
-        {
-            AX = ax;
-            AY = ay;
-            BX = bx;
-            BY = by;
-        }
-
-        public float AX { get; private set; }
-        public float AY { get; private set; }
-        public float BX { get; private set; }
-        public float BY { get; private set; }
-    }
-
     public sealed class ShipVoxelModel
     {
         public ShipVoxelModel()
         {
             Blocks = new List<ShipBlockGeometry>();
             Cells = new List<ShipCell>();
+            Devices = new List<ShipDeviceMarker>();
             ResetBounds();
         }
 
         public List<ShipBlockGeometry> Blocks { get; private set; }
         public List<ShipCell> Cells { get; private set; }
+        public List<ShipDeviceMarker> Devices { get; private set; }
         public int MinX { get; private set; }
         public int MinY { get; private set; }
         public int MinZ { get; private set; }
@@ -178,6 +199,7 @@ namespace AGS
         {
             Blocks.Clear();
             Cells.Clear();
+            Devices.Clear();
             ResetBounds();
         }
 
@@ -186,6 +208,14 @@ namespace AGS
             if (block != null)
             {
                 Blocks.Add(block);
+            }
+        }
+
+        public void AddDevice(ShipDeviceMarker device)
+        {
+            if (device != null)
+            {
+                Devices.Add(device);
             }
         }
 
@@ -225,6 +255,12 @@ namespace AGS
                 {
                     Blocks[cell.OwnerIndex].AddCell(cell);
                 }
+            }
+
+            for (var i = 0; i < source.Devices.Count; i++)
+            {
+                var device = source.Devices[i];
+                AddDevice(new ShipDeviceMarker(device.Category, device.X, device.Y, device.Z));
             }
         }
 

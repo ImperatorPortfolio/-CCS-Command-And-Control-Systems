@@ -22,6 +22,8 @@ namespace AGS
             Register(new DamageControlApp());
             Register(new CommsApp());
             Register(new SystemApp());
+            Register(new GalleryApp());
+            Register(new DemoProgramApp());
         }
 
         public bool Contains(string appId)

@@ -24,10 +24,16 @@ namespace AGS
             _grids.Update();
         }
 
+        public bool IsPointerEngaged()
+        {
+            return _grids.IsPointerEngaged();
+        }
+
         public void Unload()
         {
             _grids.Clear();
             _resolution.Unload();
+            UiXmlLoader.ClearCache();
         }
 
         public void RegisterScreen(IMyCubeBlock block, Sandbox.ModAPI.IMyTextSurface surface)

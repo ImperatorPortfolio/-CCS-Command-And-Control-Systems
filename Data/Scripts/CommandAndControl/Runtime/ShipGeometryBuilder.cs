@@ -23,6 +23,12 @@ namespace AGS
                     continue;
                 }
 
+                // Cells are projected into the primary controller's local frame, but block
+                // orientations are grid-relative. This maps a grid direction into that same
+                // local frame so slope geometry lines up with the cells (otherwise slopes
+                // point wrong whenever the controller isn't axis-aligned with the grid).
+                var gridToLocal = grid.WorldMatrix * worldToLocal;
+
                 slimBlocks.Clear();
                 grid.GetBlocks(slimBlocks, slim => slim != null);
                 for (var j = 0; j < slimBlocks.Count; j++)
@@ -30,16 +36,30 @@ namespace AGS
                     var slim = slimBlocks[j];
                     var fat = slim.FatBlock as IMyCubeBlock;
                     var subtypeName = GetSubtypeName(slim, fat);
+                    var bounds = GetLocalBounds(grid, slim.Min, slim.Max, worldToLocal, scale);
+
                     if (!IsArmorSubtype(subtypeName))
                     {
+                        // Non-armour: keep only recognised specialty systems, as a single
+                        // icon marker at the block centre. These do not contribute hull cells.
+                        ShipDeviceCategory category;
+                        if (TryResolveDevice(slim, out category))
+                        {
+                            model.AddDevice(new ShipDeviceMarker(
+                                category,
+                                (bounds.Min.X + bounds.Max.X) * 0.5f,
+                                (bounds.Min.Y + bounds.Max.Y) * 0.5f,
+                                (bounds.Min.Z + bounds.Max.Z) * 0.5f));
+                        }
                         continue;
                     }
 
                     var shapeId = ResolveShapeId(subtypeName);
-                    var forward = fat != null ? (int)fat.Orientation.Forward : (int)slim.Orientation.Forward;
-                    var up = fat != null ? (int)fat.Orientation.Up : (int)slim.Orientation.Up;
+                    var forwardGrid = fat != null ? (int)fat.Orientation.Forward : (int)slim.Orientation.Forward;
+                    var upGrid = fat != null ? (int)fat.Orientation.Up : (int)slim.Orientation.Up;
+                    var forward = LocalDirection(forwardGrid, gridToLocal);
+                    var up = LocalDirection(upGrid, gridToLocal);
                     var right = ResolveRight(forward, up);
-                    var bounds = GetLocalBounds(grid, slim.Min, slim.Max, worldToLocal, scale);
                     var block = new ShipBlockGeometry(model.Blocks.Count, subtypeName, shapeId, bounds.Min.X, bounds.Min.Y, bounds.Min.Z, bounds.Max.X, bounds.Max.Y, bounds.Max.Z, forward, up, right);
                     model.AddBlock(block);
 
@@ -71,29 +91,58 @@ namespace AGS
             var lowered = (subtypeName ?? string.Empty).ToLowerInvariant();
             return lowered.Contains("armor") || lowered.Contains("armour");
         }
+
+        // Classifies a non-armour block into a specialty category by its object-builder type
+        // (e.g. "MyObjectBuilder_Thrust"). Returns false for blocks we don't mark (lights,
+        // conveyors, passages, etc.) so the map stays readable.
+        private static bool TryResolveDevice(IMySlimBlock slim, out ShipDeviceCategory category)
+        {
+            category = ShipDeviceCategory.Other;
+            var typeId = slim != null ? slim.BlockDefinition.Id.TypeId.ToString() : string.Empty;
+            if (string.IsNullOrEmpty(typeId))
+            {
+                return false;
+            }
+
+            if (Has(typeId, "Thrust")) { category = ShipDeviceCategory.Thruster; return true; }
+            if (Has(typeId, "Reactor")) { category = ShipDeviceCategory.Reactor; return true; }
+            if (Has(typeId, "Battery")) { category = ShipDeviceCategory.Battery; return true; }
+            if (Has(typeId, "GasTank") || Has(typeId, "OxygenTank")) { category = ShipDeviceCategory.Tank; return true; }
+            if (Has(typeId, "Cockpit") || Has(typeId, "RemoteControl") || Has(typeId, "Cryo") || Has(typeId, "ShipController")) { category = ShipDeviceCategory.Controller; return true; }
+            if (Has(typeId, "Turret") || Has(typeId, "Gatling") || Has(typeId, "Missile") || Has(typeId, "Launcher") || Has(typeId, "Gun")) { category = ShipDeviceCategory.Weapon; return true; }
+            if (Has(typeId, "CargoContainer")) { category = ShipDeviceCategory.Cargo; return true; }
+            if (Has(typeId, "Gyro")) { category = ShipDeviceCategory.Gyro; return true; }
+            return false;
+        }
+
+        private static bool Has(string value, string token)
+        {
+            return value.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
         public static ShipShapeId ResolveShapeId(string subtypeName)
         {
-            var lowered = (subtypeName ?? string.Empty).ToLowerInvariant();
-            if (lowered.Contains("2x1") && lowered.Contains("tip"))
-            {
-                return ShipShapeId.Slope2x1Tip;
-            }
-            if (lowered.Contains("2x1") && lowered.Contains("slope"))
-            {
-                return ShipShapeId.Slope2x1;
-            }
-            if (lowered.Contains("invcorner") || lowered.Contains("invertedcorner"))
-            {
-                return ShipShapeId.InvertedCorner;
-            }
-            if (lowered.Contains("corner"))
-            {
-                return ShipShapeId.Corner;
-            }
-            if (lowered.Contains("slope"))
+            // Scope: only the basic 1x1 large armour slope (light + heavy) is drawn as a
+            // sloped face for now. Every other armour shape (corners, 2x1, variants) renders
+            // as its voxel cube until its own template is added, so nothing is forced into
+            // the wrong shape.
+            if (string.Equals(subtypeName, "LargeBlockArmorSlope", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(subtypeName, "LargeHeavyBlockArmorSlope", StringComparison.OrdinalIgnoreCase))
             {
                 return ShipShapeId.Slope;
             }
+
+            if (string.Equals(subtypeName, "LargeBlockArmorSlope2Base", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(subtypeName, "LargeHeavyBlockArmorSlope2Base", StringComparison.OrdinalIgnoreCase))
+            {
+                return ShipShapeId.Slope2x1;
+            }
+
+            if (string.Equals(subtypeName, "LargeBlockArmorSlope2Tip", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(subtypeName, "LargeHeavyBlockArmorSlope2Tip", StringComparison.OrdinalIgnoreCase))
+            {
+                return ShipShapeId.Slope2x1Tip;
+            }
+
             return ShipShapeId.Cube;
         }
 
@@ -119,6 +168,15 @@ namespace AGS
             }
 
             return slim != null ? slim.BlockDefinition.Id.SubtypeName ?? string.Empty : string.Empty;
+        }
+
+        // Re-expresses a grid-relative Base6 direction in the controller-local frame the
+        // cells live in, then snaps back to the nearest axis direction.
+        private static int LocalDirection(int gridDirection, MatrixD gridToLocal)
+        {
+            var v = Base6Directions.GetIntVector((Base6Directions.Direction)gridDirection);
+            var local = Vector3D.TransformNormal(new Vector3D(v.X, v.Y, v.Z), gridToLocal);
+            return (int)Base6Directions.GetClosestDirection(new Vector3((float)local.X, (float)local.Y, (float)local.Z));
         }
 
         private static int ResolveRight(int forward, int up)

@@ -15,6 +15,7 @@ namespace AGS
         public UiVisibility Visibility { get; set; }
         public bool IsEnabled { get; set; }
         public bool Focusable { get; set; }
+        public bool CapturesPointer { get; set; }
         public bool ClipToBounds { get; set; }
         public bool IsHovered { get; set; }
         public bool IsPressed { get; set; }
@@ -161,9 +162,21 @@ namespace AGS
             }
 
             RenderSelf(frame, origin, context);
-            for (var i = 0; i < Children.Count; i++)
+
+            if (!RequiresZOrdering())
             {
-                Children[i].Render(frame, origin, context);
+                for (var i = 0; i < _children.Count; i++)
+                {
+                    _children[i].Render(frame, origin, context);
+                }
+                return;
+            }
+
+            // Lower ZIndex paints first so higher ZIndex children sit on top.
+            var order = BuildZOrder();
+            for (var i = 0; i < order.Count; i++)
+            {
+                _children[order[i]].Render(frame, origin, context);
             }
         }
 
@@ -173,7 +186,7 @@ namespace AGS
 
         public virtual UiElement HitTest(Vector2 point)
         {
-            if (Visibility == UiVisibility.Collapsed)
+            if (Visibility == UiVisibility.Collapsed || !IsEnabled)
             {
                 return null;
             }
@@ -183,12 +196,28 @@ namespace AGS
                 return null;
             }
 
-            for (var i = Children.Count - 1; i >= 0; i--)
+            if (!RequiresZOrdering())
             {
-                var hit = Children[i].HitTest(point);
-                if (hit != null)
+                for (var i = _children.Count - 1; i >= 0; i--)
                 {
-                    return hit;
+                    var hit = _children[i].HitTest(point);
+                    if (hit != null)
+                    {
+                        return hit;
+                    }
+                }
+            }
+            else
+            {
+                // Test highest ZIndex first so the top-most child wins the hit.
+                var order = BuildZOrder();
+                for (var i = order.Count - 1; i >= 0; i--)
+                {
+                    var hit = _children[order[i]].HitTest(point);
+                    if (hit != null)
+                    {
+                        return hit;
+                    }
                 }
             }
 
@@ -200,6 +229,41 @@ namespace AGS
             return null;
         }
 
+        private bool RequiresZOrdering()
+        {
+            for (var i = 0; i < _children.Count; i++)
+            {
+                if (_children[i].ZIndex != 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Stable ascending order by ZIndex; ties keep insertion order.
+        private List<int> BuildZOrder()
+        {
+            var order = new List<int>(_children.Count);
+            for (var i = 0; i < _children.Count; i++)
+            {
+                order.Add(i);
+            }
+
+            order.Sort(delegate(int a, int b)
+            {
+                var za = _children[a].ZIndex;
+                var zb = _children[b].ZIndex;
+                if (za != zb)
+                {
+                    return za < zb ? -1 : 1;
+                }
+                return a < b ? -1 : (a > b ? 1 : 0);
+            });
+            return order;
+        }
+
         public virtual UiCommand OnClick(UiContext context)
         {
             return null;
@@ -207,6 +271,36 @@ namespace AGS
 
         public virtual UiCommand OnScroll(int delta, UiContext context)
         {
+            return null;
+        }
+
+        // Called every frame the pointer is held after capturing this element.
+        public virtual UiCommand OnDrag(UiContext context)
+        {
+            return null;
+        }
+
+        public UiElement FindByFocusKey(string focusKey)
+        {
+            if (string.IsNullOrEmpty(focusKey))
+            {
+                return null;
+            }
+
+            if (Focusable && GetFocusKey() == focusKey)
+            {
+                return this;
+            }
+
+            for (var i = 0; i < _children.Count; i++)
+            {
+                var found = _children[i].FindByFocusKey(focusKey);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+
             return null;
         }
 

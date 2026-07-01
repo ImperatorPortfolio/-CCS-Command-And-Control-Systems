@@ -40,6 +40,7 @@ namespace AGS
         public bool HasControllers { get { return Controllers.Count > 0; } }
         public int ScreenCount { get { return _sessions.Count; } }
         public ShipState ShipState { get { return _shipState; } }
+        public bool IsPointerEngaged { get { return _pointer.IsEngaged; } }
 
         public void BeginControllerScan() { Controllers.BeginScan(); }
         public void RegisterController(IMyCubeBlock block) { Controllers.Register(block); }
@@ -138,6 +139,9 @@ namespace AGS
             frame.PendingAlwaysOn = session.State.PendingAlwaysOn;
             frame.TimeoutMinutes = session.State.TimeoutMinutes;
             frame.PendingTimeoutMinutes = session.State.PendingTimeoutMinutes;
+            frame.InputBuffer = session.State.InputBuffer;
+            frame.Gallery = session.State.Gallery;
+            frame.DemoProgram = session.State.DemoProgram;
             frame.Message = HasControllers ? string.Empty : "Command Core required";
             frame.AccentColor = ResolveAccentColor();
             frame.AccentGlow = ResolveAccentGlow(frame.AccentColor);
@@ -340,6 +344,18 @@ namespace AGS
                 return;
             }
 
+            if (intent.Type == UiIntentType.GalleryAction)
+            {
+                ApplyGalleryAction(session.State.Gallery, intent.Data, intent.Value);
+                return;
+            }
+
+            if (intent.Type == UiIntentType.ProgramAction)
+            {
+                ApplyProgramAction(session.State, intent.AppId, intent.Data, intent.Value);
+                return;
+            }
+
             if (intent.Type == UiIntentType.ToggleSettings)
             {
                 session.State.SettingsOpen = !session.State.SettingsOpen;
@@ -386,6 +402,12 @@ namespace AGS
             if (intent.Type == UiIntentType.AdjustTimeout)
             {
                 session.State.PendingTimeoutMinutes = ClampTimeout(session.State.PendingTimeoutMinutes + intent.Value);
+                return;
+            }
+
+            if (intent.Type == UiIntentType.InputKey)
+            {
+                session.State.InputBuffer = ApplyInputKey(session.State.InputBuffer, intent.Value);
                 return;
             }
 
@@ -913,6 +935,108 @@ namespace AGS
             return minutes;
         }
 
+        // Applies one Keypad key to the numeric input buffer. Digits append (up to a
+        // fixed width); Keypad.ClearCode wipes it; Keypad.BackspaceCode drops the last.
+        private static string ApplyInputKey(string buffer, int code)
+        {
+            const int MaxDigits = 9;
+            var current = buffer ?? string.Empty;
+
+            if (code == Keypad.ClearCode)
+            {
+                return string.Empty;
+            }
+
+            if (code == Keypad.BackspaceCode)
+            {
+                return current.Length > 0 ? current.Substring(0, current.Length - 1) : string.Empty;
+            }
+
+            if (code < 0 || code > 9 || current.Length >= MaxDigits)
+            {
+                return current;
+            }
+
+            // Avoid a leading run of zeros.
+            if (current == "0")
+            {
+                current = string.Empty;
+            }
+
+            return current + code.ToString(CultureInfo.InvariantCulture);
+        }
+
+        // Routes UIGallery interactions by action key. Test-harness only.
+        // Routes a generic program command to the program that owns the active app. This is
+        // the seam where, in the server-authoritative model, the command arrives from a
+        // client and is executed against server-owned program state.
+        private static void ApplyProgramAction(ShellState state, string appId, string action, int value)
+        {
+            if (state == null || string.IsNullOrEmpty(appId))
+            {
+                return;
+            }
+
+            switch (appId)
+            {
+                case DemoProgram.IdValue:
+                    DemoProgram.Apply(state.DemoProgram, action, value);
+                    break;
+            }
+        }
+
+        private static void ApplyGalleryAction(GalleryState gallery, string action, int value)
+        {
+            if (gallery == null || string.IsNullOrEmpty(action))
+            {
+                return;
+            }
+
+            switch (action)
+            {
+                case "tab":
+                    gallery.Tab = value;
+                    break;
+                case "expander":
+                    gallery.Expanded = !gallery.Expanded;
+                    break;
+                case "ddToggle":
+                    gallery.DropdownOpen = !gallery.DropdownOpen;
+                    break;
+                case "ddSelect":
+                    gallery.DropdownIndex = value;
+                    gallery.DropdownOpen = false;
+                    break;
+                case "slider":
+                    gallery.Slider = value;
+                    break;
+                case "stepper":
+                    gallery.Stepper = value;
+                    break;
+                case "check":
+                    gallery.Check = value != 0;
+                    break;
+                case "toggle":
+                    gallery.Check = !gallery.Check;
+                    break;
+                case "radio":
+                    gallery.Radio = value;
+                    break;
+                case "key":
+                    gallery.Input = ApplyInputKey(gallery.Input, value);
+                    break;
+                case "dialog":
+                    gallery.DialogOpen = !gallery.DialogOpen;
+                    break;
+                case "repeatInc":
+                    gallery.Slider = Math.Min(100, gallery.Slider + 1);
+                    break;
+                case "repeatDec":
+                    gallery.Slider = Math.Max(0, gallery.Slider - 1);
+                    break;
+            }
+        }
+
         private static int ClampZoom(int step)
         {
             if (step < -4)
@@ -1007,7 +1131,7 @@ namespace AGS
 
         private static ShipView CycleShipView(ShipView view, int delta)
         {
-            var count = 6;
+            var count = Enum.GetValues(typeof(ShipView)).Length;
             var next = ((int)view + delta) % count;
             if (next < 0)
             {

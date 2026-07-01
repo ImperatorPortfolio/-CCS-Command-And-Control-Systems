@@ -304,4 +304,27 @@ namespace AGS
         protected override string[] GetProviderIds() { return new[] { "alerts", "sensors", "core" }; }
         protected override string[] GetTodos() { return new[] { "External link registry", "Message queue", "Broadcast presets" }; }
     }
+
+    // Test harness app. Does not claim a station role, so launching it never reassigns
+    // the station. Rendered by GalleryView; exercises every control in the library.
+    public sealed class GalleryApp : IGridApp
+    {
+        public const string IdValue = "gallery";
+
+        public string Id { get { return IdValue; } }
+        public string Title { get { return "UI Gallery"; } }
+        public string Purpose { get { return "Control test harness"; } }
+        public StationRole? StationRole { get { return null; } }
+        public RoleId RequiredRole { get { return RoleId.Unknown; } }
+
+        public void Activate(AppContext context)
+        {
+        }
+
+        public void Build(AppContext context, UiFrame frame)
+        {
+            frame.StationTitle = Title;
+            frame.StationPurpose = Purpose;
+        }
+    }
 }

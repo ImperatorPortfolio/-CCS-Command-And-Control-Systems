@@ -61,14 +61,14 @@ namespace AGS
             bindings.Set("nav6", FormatNavLabel("CAMERAS", cameras));
 
             bindings.Set("bodyTitle", "CONSTRUCT OUTLINE");
-            bindings.Set("bodyDetail", ShipRenderer.GetViewLabel(model.View) + " | layer " + layerIndex.ToString("00") + "/" + layerCount.ToString("00") + " | zoom " + FormatZoom(model.ZoomStep));
+            bindings.Set("bodyDetail", ShipMapRenderer.GetViewLabel(model.View) + " | layer " + layerIndex.ToString("00") + "/" + layerCount.ToString("00") + " | zoom " + FormatZoom(model.ZoomStep));
 
             bindings.Set("detailsTitle", selected.Name);
             bindings.Set("detailsState", selected.StatusText);
             bindings.Set("detailsSummary", selected.Summary);
             bindings.Set("detailsLine1", selected.Detail);
             bindings.Set("detailsLine2", "Nodes " + selected.Count.ToString("00") + " | Active " + selected.ActiveCount.ToString("00"));
-            bindings.Set("detailsLine3", "View " + ShipRenderer.GetViewLabel(model.View) + " | Slice " + layerIndex.ToString("00") + "/" + layerCount.ToString("00"));
+            bindings.Set("detailsLine3", "View " + ShipMapRenderer.GetViewLabel(model.View) + " | Slice " + layerIndex.ToString("00") + "/" + layerCount.ToString("00"));
 
             bindings.Set("metric1Label", "HEALTH");
             bindings.Set("metric1Value", ((int)Math.Round(MathHelper.Clamp(selected.Metric, 0f, 1f) * 100f)).ToString("00") + "%");
@@ -82,7 +82,7 @@ namespace AGS
             bindings.Set("metric3Value", GetCoverageValue(model, selected));
             bindings.Set("metric3Ratio", GetCoverageRatio(model, selected));
 
-            bindings.Set("viewLabel", ShipRenderer.GetViewLabel(model.View));
+            bindings.Set("viewLabel", ShipMapRenderer.GetViewLabel(model.View));
             bindings.Set("layerLabel", layerIndex.ToString("00") + "/" + layerCount.ToString("00"));
             bindings.Set("zoomLabel", FormatZoom(model.ZoomStep));
             bindings.Set("action1", model.LockdownActive ? "RELEASE LOCKDOWN" : "INITIATE LOCKDOWN");
@@ -165,7 +165,7 @@ namespace AGS
 
         private static void RenderOutlineMap(MySpriteDrawFrame frame, Vector2 origin, UiRect rect, UiContext context)
         {
-            ShipRenderer.Render(frame, origin, rect, context, FindSelected(context.Frame.Security));
+            ShipMapRenderer.Render(frame, origin, rect, context, FindSelected(context.Frame.Security));
         }
 
         private static int GetLayerCount(SecurityScreenModel model)

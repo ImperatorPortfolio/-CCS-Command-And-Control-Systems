@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using Sandbox.Game.GameSystems.TextSurfaceScripts;
 using Sandbox.ModAPI;
 using VRage.Game.GUI.TextPanel;
@@ -18,6 +19,7 @@ namespace AGS
         private readonly float _layoutScale;
         private readonly FocusManager _focus;
         private readonly ShellViewBuilder _builder;
+        private readonly StringBuilder _measureBuilder = new StringBuilder();
 
         private bool _registered;
         private bool _lowPowerMode;
@@ -46,6 +48,11 @@ namespace AGS
         {
             base.Run();
             RegisterIfNeeded();
+
+            // Point the renderer's text measurer at this surface so wrapping and auto-fit use
+            // real proportional glyph widths. Set per Run (TSS draws run sequentially on the
+            // main thread, so the shared static hook is safe to reassign here).
+            UiRenderer.MeasureText = MeasureSurfaceText;
 
             var frameModel = Session.Program != null ? Session.Program.GetFrame(_block, _surface) : UiFrame.CreateOffline();
             if (frameModel == null)
@@ -105,6 +112,18 @@ namespace AGS
 
             Session.Program.RegisterScreen(_block, _surface);
             _registered = true;
+        }
+
+        private Vector2 MeasureSurfaceText(string text, string font, float scale)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return Vector2.Zero;
+            }
+
+            _measureBuilder.Clear();
+            _measureBuilder.Append(text);
+            return _surface.MeasureStringInPixels(_measureBuilder, font ?? "Monospace", scale);
         }
 
         private void DrawBackground(MySpriteDrawFrame frame)
@@ -207,11 +226,14 @@ namespace AGS
             var x = pointer.Position.X;
             var y = pointer.Position.Y;
 
+            // Sprites anchor at (left-edge X, centre Y), so to centre each piece on the
+            // cursor point its X must be shifted left by half its width (Y is already the
+            // vertical centre). Without this the crosshair sits to the right of the point.
             frame.Add(new MySprite
             {
                 Type = SpriteType.TEXTURE,
                 Data = "SquareSimple",
-                Position = new Vector2(x, y),
+                Position = new Vector2(x - (size * 0.5f), y),
                 Size = new Vector2(size, size),
                 Color = color
             });
@@ -220,7 +242,7 @@ namespace AGS
             {
                 Type = SpriteType.TEXTURE,
                 Data = "SquareSimple",
-                Position = new Vector2(x, y),
+                Position = new Vector2(x - (arm * 0.5f), y),
                 Size = new Vector2(arm, 1f),
                 Color = color
             });
@@ -229,7 +251,7 @@ namespace AGS
             {
                 Type = SpriteType.TEXTURE,
                 Data = "SquareSimple",
-                Position = new Vector2(x, y),
+                Position = new Vector2(x - 0.5f, y),
                 Size = new Vector2(1f, arm),
                 Color = color
             });

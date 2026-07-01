@@ -70,6 +70,19 @@ namespace AGS
             runtime?.SubmitIntent(block, surface, intent);
         }
 
+        public bool IsPointerEngaged()
+        {
+            foreach (var runtime in _runtimes.Values)
+            {
+                if (runtime.IsPointerEngaged)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public void Clear()
         {
             foreach (var runtime in _runtimes.Values)

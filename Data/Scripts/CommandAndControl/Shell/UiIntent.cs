@@ -14,6 +14,11 @@ namespace AGS
         ToggleAlwaysOn,
         AdjustTimeout,
         ApplySettings,
+        InputKey,
+        GalleryAction,
+        // Generic, app-scoped action carried by appId + commandData(action) + commandValue.
+        // Replaces per-feature enum entries for program-API apps (Step 3).
+        ProgramAction,
         SelectSubpage,
         SelectEngineeringSubpage,
         SelectEngineeringNode,

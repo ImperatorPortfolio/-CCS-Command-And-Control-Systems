@@ -8,13 +8,12 @@
       </Id>
       <Public>true</Public>
       <DisplayName>Command Core</DisplayName>
-      <Icon>Textures\darth_biomech\GUI\DarkMatterCoreS.dds</Icon>
       <Description>Primary construct core. Screens require one core on the construct to boot the shell.</Description>
       <CubeSize>Small</CubeSize>
       <BlockTopology>TriangleMesh</BlockTopology>
       <Size x="1" y="1" z="1" />
       <ModelOffset x="0" y="0" z="0" />
-      <Model>Models\Cubes\small\SmallProgrammableBlock.mwm</Model>
+      <Model>Models\Cubes\small\ProgrammableBlock.mwm</Model>
       <Components>
         <Component Subtype="SteelPlate" Count="1" />
         <Component Subtype="Construction" Count="2" />
@@ -58,13 +57,12 @@
       </Id>
       <Public>true</Public>
       <DisplayName>Command Core</DisplayName>
-      <Icon>Textures\darth_biomech\GUI\DarkMatterCoreL.dds</Icon>
       <Description>Primary construct core. Screens require one core on the construct to boot the shell.</Description>
       <CubeSize>Large</CubeSize>
       <BlockTopology>TriangleMesh</BlockTopology>
       <Size x="1" y="1" z="1" />
       <ModelOffset x="0" y="0" z="0" />
-      <Model>Models\Cubes\large\LargeProgrammableBlock.mwm</Model>
+      <Model>Models\Cubes\large\ProgrammableBlock.mwm</Model>
       <Components>
         <Component Subtype="InteriorPlate" Count="10" />
         <Component Subtype="Construction" Count="20" />

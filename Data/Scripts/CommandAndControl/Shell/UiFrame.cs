@@ -36,6 +36,9 @@ namespace AGS
         public bool PendingAlwaysOn { get; set; }
         public int TimeoutMinutes { get; set; }
         public int PendingTimeoutMinutes { get; set; }
+        public string InputBuffer { get; set; }
+        public GalleryState Gallery { get; set; }
+        public DemoProgramState DemoProgram { get; set; }
         public string Message { get; set; }
         public Color AccentColor { get; set; }
         public Color AccentGlow { get; set; }

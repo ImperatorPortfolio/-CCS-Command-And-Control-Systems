@@ -22,19 +22,23 @@ namespace AGS
 
             root.AddChild(BuildShellLayer(context));
 
+            var view = new UiView(root);
+
+            // Modals live on the overlay layer: drawn above the page and hit-tested first,
+            // with a full-viewport backdrop that dismisses on an outside click.
             if (context.Frame.StartMenuOpen)
             {
-                root.AddChild(BuildBackdrop(UiCommand.Create(UiIntentType.ToggleStart)));
-                root.AddChild(BuildStartMenu(context));
+                view.AddOverlay(BuildBackdrop(UiCommand.Create(UiIntentType.ToggleStart)));
+                view.AddOverlay(BuildStartMenu(context));
             }
 
             if (context.Frame.SettingsOpen)
             {
-                root.AddChild(BuildBackdrop(UiCommand.Create(UiIntentType.CloseSettings)));
-                root.AddChild(BuildSettingsWindow(context));
+                view.AddOverlay(BuildBackdrop(UiCommand.Create(UiIntentType.CloseSettings)));
+                view.AddOverlay(BuildSettingsWindow(context));
             }
 
-            return new UiView(root);
+            return view;
         }
 
         private UiElement BuildShellLayer(UiContext context)
@@ -168,6 +172,19 @@ namespace AGS
             if (context.Frame.ActiveAppId == EngineeringApp.IdValue)
             {
                 return EngineeringView.Build(context);
+            }
+
+            if (context.Frame.ActiveAppId == GalleryApp.IdValue)
+            {
+                return GalleryView.Build(context);
+            }
+
+            // Program-API apps render from a serialized ProgramFrame through ProgramHost,
+            // rather than a hardcoded view. (Step 2: this branch replaces the per-app switch
+            // as views migrate onto the contract.)
+            if (context.Frame.ActiveAppId == DemoProgram.IdValue)
+            {
+                return ProgramHost.Render(context, DemoProgram.Manifest, DemoProgram.BuildFrame(context));
             }
 
             return BuildTextStation(context);
@@ -330,8 +347,8 @@ namespace AGS
 
         private UiElement BuildSettingsWindow(UiContext context)
         {
-            var width = MathHelper.Clamp(context.Viewport.Width * 0.54f, 150f * context.Theme.LayoutScale, 430f);
-            var height = MathHelper.Clamp(context.Viewport.Height * 0.56f, 110f * context.Theme.LayoutScale, 260f);
+            var width = MathHelper.Clamp(context.Viewport.Width * 0.6f, 160f * context.Theme.LayoutScale, 460f);
+            var height = MathHelper.Clamp(context.Viewport.Height * 0.74f, 150f * context.Theme.LayoutScale, 560f);
             var panel = new Border
             {
                 Width = width,
@@ -370,6 +387,21 @@ namespace AGS
             timeoutGrid.AddChild(new Button { GridColumn = 2, Text = "+", Scale = context.Theme.TextMd, Style = context.Theme.ShellButtonStyle, Command = UiCommand.Create(UiIntentType.AdjustTimeout, string.Empty, 1) });
             stack.AddChild(timeoutGrid);
             stack.AddChild(new TextBlock { Text = context.Frame.PendingTimeoutMinutes + " min", Scale = context.Theme.TextMd, Color = context.Theme.ForegroundPrimary, Alignment = TextAlignment.CENTER, Height = 18f * context.Theme.LayoutScale });
+
+            // Numeric input demo: a display-only TextBox shows the buffer the Keypad edits.
+            stack.AddChild(new TextBlock { Text = "Numeric input (demo)", Scale = context.Theme.TextSm, Color = context.Theme.ForegroundMuted, Height = 14f * context.Theme.LayoutScale });
+            stack.AddChild(new TextBox
+            {
+                Text = context.Frame.InputBuffer,
+                Placeholder = "0",
+                Scale = context.Theme.TextMd,
+                Height = 22f * context.Theme.LayoutScale
+            });
+            stack.AddChild(new Keypad
+            {
+                Height = 96f * context.Theme.LayoutScale,
+                Command = UiCommand.Create(UiIntentType.InputKey)
+            });
 
             var actions = new GridPanel { Height = 28f * context.Theme.LayoutScale };
             actions.Columns.Add(new GridDefinition(UiLength.Star(1f)));

@@ -79,6 +79,10 @@ namespace AGS
             bindings.Set("metric3Label", "DAMAGE LOAD");
             bindings.Set("metric3Value", ((int)Math.Round(damageRatio * 100f)).ToString("00") + "%");
             bindings.Set("metric3Ratio", damageRatio);
+            var sourceCount = batteries + reactors + h2;
+            bindings.Set("batteryMetricLabel", "BATTERY BUS");
+            bindings.Set("batteryMetricValue", batteries.ToString("00"));
+            bindings.Set("batteryMetricRatio", sourceCount > 0 ? MathHelper.Clamp((float)batteries / sourceCount, 0f, 1f) : 0f);
 
             bindings.Set("tile1Caption", "BAT");
             bindings.Set("tile1Value", batteries.ToString("00"));

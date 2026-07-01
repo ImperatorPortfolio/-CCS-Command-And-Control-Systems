@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Sandbox.Game.GameSystems.TextSurfaceScripts;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
@@ -7,6 +8,32 @@ namespace AGS
 {
     public static class UiRenderer
     {
+        // Set once per surface (see ShellScript) so wrapping and auto-fit can measure real
+        // proportional glyph widths instead of guessing a fixed character width. Args are
+        // (text, font, scale) -> pixel size. Falls back to an estimate when unset.
+        public static Func<string, string, float, Vector2> MeasureText;
+
+        private static float MeasureWidth(string text, string font, float scale)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return 0f;
+            }
+
+            var measure = MeasureText;
+            if (measure != null)
+            {
+                var size = measure(text, font, scale);
+                if (size.X > 0f)
+                {
+                    return size.X;
+                }
+            }
+
+            // Fallback when no surface measurer is wired: rough monospace estimate.
+            return text.Length * Math.Max(4f, 9f * scale);
+        }
+
         public static void DrawPanel(MySpriteDrawFrame frame, Vector2 origin, UiPanel panel)
         {
             var topLeft = origin + panel.Bounds.Position;
@@ -19,7 +46,7 @@ namespace AGS
             var text = label.Text ?? string.Empty;
             var textRect = label.Bounds.Deflate(label.Padding);
             var requestedScale = label.Scale < 0.34f ? 0.34f : label.Scale;
-            var fittedScale = FitTextScale(text, requestedScale, textRect.Width, textRect.Height);
+            var fittedScale = FitTextScale(text, label.Font, requestedScale, textRect.Width, textRect.Height);
             var position = GetTextPosition(textRect, label.Alignment, label.VerticalAlignment, fittedScale);
             var sprite = MySprite.CreateText(text, label.Font ?? "White", label.Color, fittedScale, label.Alignment);
             sprite.Position = origin + position;
@@ -29,6 +56,13 @@ namespace AGS
         public static void DrawButton(MySpriteDrawFrame frame, Vector2 origin, UiButton button)
         {
             var background = button.IsPressed ? button.PressedBackground : button.IsHovered ? button.HoverBackground : button.Background;
+            var foreground = button.Foreground;
+            if (button.IsDisabled)
+            {
+                background = Dim(background, 0.6f);
+                foreground = Dim(foreground, 0.5f);
+            }
+
             DrawPanel(frame, origin, new UiPanel { Bounds = button.Bounds, Background = background });
             DrawLabel(frame, origin, new UiLabel
             {
@@ -37,10 +71,16 @@ namespace AGS
                 Text = button.Text,
                 Font = button.Font,
                 Scale = button.Scale,
-                Color = button.Foreground,
+                Color = foreground,
                 Alignment = button.Alignment,
                 VerticalAlignment = UiVerticalAlignment.Center
             });
+        }
+
+        // Scales RGB toward black while preserving alpha; used for disabled chrome.
+        public static Color Dim(Color color, float factor)
+        {
+            return new Color((byte)(color.R * factor), (byte)(color.G * factor), (byte)(color.B * factor), color.A);
         }
 
         public static void DrawTextBox(MySpriteDrawFrame frame, Vector2 origin, UiTextBox box)
@@ -345,13 +385,178 @@ namespace AGS
                 return;
             }
 
+            // SquareSimple sprites in this renderer anchor at (left edge X, centre Y) and
+            // rotate about the sprite centre. Drawing the bar along its HEIGHT axis with a
+            // +90° offset keeps the rotation pivot on the segment midpoint, so the line runs
+            // exactly a->b. (Width-as-length instead pivots half a segment off and skews
+            // every diagonal.) Matches Adrian Lima's TouchScreenAPI chart line recipe.
             frame.Add(new MySprite
             {
                 Type = SpriteType.TEXTURE,
                 Data = "SquareSimple",
                 Position = origin + ((a + b) * 0.5f),
-                Size = new Vector2(length, Math.Max(1f, thickness)),
-                RotationOrScale = (float)Math.Atan2(delta.Y, delta.X),
+                Size = new Vector2(Math.Max(1f, thickness), length),
+                RotationOrScale = (float)Math.Atan2(delta.Y, delta.X) + MathHelper.PiOver2,
+                Color = color
+            });
+        }
+
+        public static void DrawCircle(MySpriteDrawFrame frame, Vector2 origin, Vector2 center, float radius, Color color)
+        {
+            if (radius <= 0f)
+            {
+                return;
+            }
+
+            // Same anchor convention as the rest of the renderer: X = left edge of
+            // the bounding box, Y = vertical centre.
+            var spritePosition = origin + new Vector2(center.X - radius, center.Y);
+            Circle(frame, spritePosition, radius, color);
+        }
+
+        public static void DrawEllipse(MySpriteDrawFrame frame, Vector2 origin, UiRect bounds, Color color)
+        {
+            if (bounds.Width <= 0f || bounds.Height <= 0f)
+            {
+                return;
+            }
+
+            var topLeft = origin + bounds.Position;
+            frame.Add(new MySprite
+            {
+                Type = SpriteType.TEXTURE,
+                Data = "Circle",
+                Position = new Vector2(topLeft.X, topLeft.Y + (bounds.Size.Y * 0.5f)),
+                Size = bounds.Size,
+                Color = color
+            });
+        }
+
+        // Word-wrapped multi-line text within rect. Honours embedded newlines.
+        public static void DrawParagraph(MySpriteDrawFrame frame, Vector2 origin, UiRect rect, string text, string font, float scale, Color color, TextAlignment alignment)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return;
+            }
+
+            var lineHeight = Math.Max(12f, 30f * scale);
+            var lines = WrapLines(text, rect.Width, scale, font);
+            var y = rect.Y;
+            for (var i = 0; i < lines.Count; i++)
+            {
+                if (y >= rect.Bottom)
+                {
+                    break;
+                }
+
+                DrawLabel(frame, origin, new UiLabel
+                {
+                    Bounds = new UiRect(rect.X, y, rect.Width, lineHeight),
+                    Padding = new UiThickness(0f),
+                    Text = lines[i],
+                    Font = font,
+                    Scale = scale,
+                    Color = color,
+                    Alignment = alignment,
+                    VerticalAlignment = UiVerticalAlignment.Top
+                });
+                y += lineHeight;
+            }
+        }
+
+        public static int CountWrappedLines(string text, float maxWidth, float scale, string font)
+        {
+            return string.IsNullOrEmpty(text) ? 0 : WrapLines(text, maxWidth, scale, font).Count;
+        }
+
+        // Greedy word wrap that measures real glyph widths against maxWidth. Honours embedded
+        // newlines, and hard-splits any single word that is itself wider than the line.
+        private static List<string> WrapLines(string text, float maxWidth, float scale, string font)
+        {
+            var lines = new List<string>();
+            var limit = Math.Max(1f, maxWidth);
+            var paragraphs = (text ?? string.Empty).Split('\n');
+            for (var p = 0; p < paragraphs.Length; p++)
+            {
+                var words = paragraphs[p].Split(' ');
+                var current = string.Empty;
+                for (var i = 0; i < words.Length; i++)
+                {
+                    var word = words[i];
+                    if (word.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    // Break a word that cannot fit on a line by itself, one chunk at a time.
+                    while (MeasureWidth(word, font, scale) > limit && word.Length > 1)
+                    {
+                        if (current.Length > 0)
+                        {
+                            lines.Add(current);
+                            current = string.Empty;
+                        }
+
+                        var cut = LongestPrefixThatFits(word, font, scale, limit);
+                        lines.Add(word.Substring(0, cut));
+                        word = word.Substring(cut);
+                    }
+
+                    if (current.Length == 0)
+                    {
+                        current = word;
+                    }
+                    else if (MeasureWidth(current + " " + word, font, scale) <= limit)
+                    {
+                        current = current + " " + word;
+                    }
+                    else
+                    {
+                        lines.Add(current);
+                        current = word;
+                    }
+                }
+
+                lines.Add(current);
+            }
+
+            return lines;
+        }
+
+        private static int LongestPrefixThatFits(string word, string font, float scale, float limit)
+        {
+            // At least one character, even if it overflows, to guarantee progress.
+            var cut = 1;
+            for (var n = 1; n <= word.Length; n++)
+            {
+                if (MeasureWidth(word.Substring(0, n), font, scale) <= limit)
+                {
+                    cut = n;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return cut;
+        }
+
+        public static void DrawImage(MySpriteDrawFrame frame, Vector2 origin, UiRect bounds, string sprite, Color color)
+        {
+            if (string.IsNullOrEmpty(sprite))
+            {
+                return;
+            }
+
+            var topLeft = origin + bounds.Position;
+            frame.Add(new MySprite
+            {
+                Type = SpriteType.TEXTURE,
+                Data = sprite,
+                Position = new Vector2(topLeft.X, topLeft.Y + (bounds.Size.Y * 0.5f)),
+                Size = bounds.Size,
                 Color = color
             });
         }
@@ -388,7 +593,7 @@ namespace AGS
             return Math.Min(rectHeight, Math.Max(8f, 28f * scale));
         }
 
-        private static float FitTextScale(string text, float requestedScale, float rectWidth, float rectHeight)
+        private static float FitTextScale(string text, string font, float requestedScale, float rectWidth, float rectHeight)
         {
             var fitted = requestedScale;
             var safeHeight = Math.Max(1f, rectHeight);
@@ -402,11 +607,15 @@ namespace AGS
 
             if (!string.IsNullOrEmpty(text))
             {
-                var widthPerChar = 8.75f;
-                var widthLimited = safeWidth / (Math.Max(1, text.Length) * widthPerChar);
-                if (widthLimited < fitted)
+                // Measure at the requested scale and shrink proportionally if it overruns.
+                var measured = MeasureWidth(text, font, requestedScale);
+                if (measured > safeWidth)
                 {
-                    fitted = widthLimited;
+                    var widthLimited = requestedScale * (safeWidth / measured);
+                    if (widthLimited < fitted)
+                    {
+                        fitted = widthLimited;
+                    }
                 }
             }
 

@@ -17,11 +17,29 @@ namespace AGS
             public readonly List<UiMarkupNode> Children = new List<UiMarkupNode>();
         }
 
+        // Parsed view documents are immutable and rebuilt into fresh elements on every
+        // call, so the disk read + parse only needs to happen once per view path.
+        private static readonly Dictionary<string, UiMarkupNode> DocumentCache = new Dictionary<string, UiMarkupNode>();
+
+        public static void ClearCache()
+        {
+            DocumentCache.Clear();
+        }
+
         public static UiElement Build(string relativePath, UiContext context, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals)
         {
             try
             {
-                var document = LoadDocument(relativePath);
+                UiMarkupNode document;
+                if (!DocumentCache.TryGetValue(relativePath, out document))
+                {
+                    document = LoadDocument(relativePath);
+                    if (document != null)
+                    {
+                        DocumentCache[relativePath] = document;
+                    }
+                }
+
                 if (document == null)
                 {
                     return BuildError("Missing XML view: " + relativePath, context);
@@ -38,6 +56,50 @@ namespace AGS
             catch (Exception exception)
             {
                 return BuildError("XML view error: " + exception.Message, context);
+            }
+        }
+
+        // Builds an element tree from a markup string rather than a file. Used to render
+        // a program's serialized ProgramFrame (markup arrives over the wire, not from the
+        // mod's own Data folder). When cacheKey is supplied the parsed document is reused
+        // across frames; pass null for one-off markup to skip caching. External programs
+        // supply no custom-visual delegates, so visuals defaults to none.
+        public static UiElement BuildFromMarkup(string cacheKey, string markup, UiContext context, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals = null)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(markup))
+                {
+                    return BuildError("Empty program markup", context);
+                }
+
+                UiMarkupNode document = null;
+                var key = string.IsNullOrEmpty(cacheKey) ? null : "markup:" + cacheKey;
+                if (key == null || !DocumentCache.TryGetValue(key, out document))
+                {
+                    document = Parse(markup);
+                    if (document != null && key != null)
+                    {
+                        DocumentCache[key] = document;
+                    }
+                }
+
+                if (document == null)
+                {
+                    return BuildError("Unparseable program markup", context);
+                }
+
+                var root = string.Equals(document.Name, "View", StringComparison.OrdinalIgnoreCase) ? FirstChild(document) : document;
+                if (root == null)
+                {
+                    return BuildError("Empty program markup", context);
+                }
+
+                return BuildElement(root, context, bindings, visuals);
+            }
+            catch (Exception exception)
+            {
+                return BuildError("Program markup error: " + exception.Message, context);
             }
         }
 
@@ -304,6 +366,73 @@ namespace AGS
                 case "scrollviewer":
                     element = BuildScrollViewer(node, bindings, visuals, context);
                     break;
+                case "radiobutton":
+                    element = BuildRadioButton(node, bindings);
+                    break;
+                case "stepper":
+                    element = BuildStepper(node, bindings);
+                    break;
+                case "progressbar":
+                    element = BuildProgressBar(node, bindings);
+                    break;
+                case "separator":
+                    element = BuildSeparator(node, bindings);
+                    break;
+                case "image":
+                    element = BuildImage(node, bindings);
+                    break;
+                case "keypad":
+                    element = BuildKeypad(node, bindings);
+                    break;
+                case "tabstrip":
+                    element = BuildTabStrip(node, bindings);
+                    break;
+                case "dropdown":
+                    element = BuildDropdown(node, bindings);
+                    break;
+                case "uniformgrid":
+                    element = BuildUniformGrid(node, context, bindings, visuals);
+                    break;
+                case "wrappanel":
+                case "wrap":
+                    element = BuildWrapPanel(node, context, bindings, visuals);
+                    break;
+                case "repeatbutton":
+                    element = BuildRepeatButton(node, bindings);
+                    break;
+                case "rectangle":
+                    element = BuildRectangle(node, bindings);
+                    break;
+                case "ellipse":
+                    element = BuildEllipse(node, bindings);
+                    break;
+                case "line":
+                    element = BuildLine(node, bindings);
+                    break;
+                case "chart":
+                    element = BuildChart(node, bindings);
+                    break;
+                case "table":
+                    element = BuildTable(node, bindings);
+                    break;
+                case "detailsview":
+                    element = BuildDetailsView(node, bindings);
+                    break;
+                case "groupbox":
+                    element = BuildGroupBox(node, context, bindings, visuals);
+                    break;
+                case "expander":
+                    element = BuildExpander(node, context, bindings, visuals);
+                    break;
+                case "tabcontrol":
+                    element = BuildTabControl(node, context, bindings, visuals);
+                    break;
+                case "tabitem":
+                    element = BuildTabItem(node, context, bindings, visuals);
+                    break;
+                case "dialog":
+                    element = BuildDialog(node, context, bindings, visuals);
+                    break;
                 case "customvisual":
                     element = BuildCustomVisual(node, bindings, visuals);
                     break;
@@ -518,6 +647,289 @@ namespace AGS
             return viewer;
         }
 
+        private static UiElement BuildRadioButton(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new RadioButton
+            {
+                Text = ResolveString(node, bindings, "text", string.Empty),
+                IsSelected = ResolveBool(node, bindings, "selected", false),
+                GroupValue = ResolveInt(node, bindings, "groupValue", 0),
+                Command = ResolveCommand(node, bindings)
+            };
+        }
+
+        private static UiElement BuildStepper(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new Stepper
+            {
+                Label = ResolveString(node, bindings, "label", string.Empty),
+                ValueSuffix = ResolveString(node, bindings, "valueSuffix", string.Empty),
+                Value = ResolveInt(node, bindings, "value", 0),
+                MinValue = ResolveInt(node, bindings, "minValue", 0),
+                MaxValue = ResolveInt(node, bindings, "maxValue", 100),
+                Step = ResolveInt(node, bindings, "step", 1),
+                Command = ResolveCommand(node, bindings)
+            };
+        }
+
+        private static UiElement BuildProgressBar(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new ProgressBar
+            {
+                Ratio = ResolveFloat(node, bindings, "ratio", 0f),
+                ValueText = ResolveString(node, bindings, "valueText", string.Empty),
+                FillColor = ResolveColor(node, bindings, "fillColor", Color.Transparent)
+            };
+        }
+
+        private static UiElement BuildSeparator(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new Separator
+            {
+                Vertical = ResolveBool(node, bindings, "vertical", false),
+                Color = ResolveColor(node, bindings, "color", Color.Transparent),
+                Thickness = ResolveFloat(node, bindings, "thickness", 1f)
+            };
+        }
+
+        private static UiElement BuildImage(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new ImageControl
+            {
+                Sprite = ResolveString(node, bindings, "sprite", string.Empty),
+                Tint = ResolveColor(node, bindings, "tint", Color.White),
+                Command = ResolveCommand(node, bindings)
+            };
+        }
+
+        private static UiElement BuildKeypad(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new Keypad
+            {
+                Command = ResolveCommand(node, bindings)
+            };
+        }
+
+        private static UiElement BuildTabStrip(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            var tabStrip = new TabStrip
+            {
+                SelectedIndex = ResolveInt(node, bindings, "selectedIndex", 0),
+                Command = ResolveCommand(node, bindings)
+            };
+            tabStrip.SetTabs(ResolveString(node, bindings, "tabs", string.Empty));
+            return tabStrip;
+        }
+
+        private static UiElement BuildDropdown(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            var dropdown = new Dropdown
+            {
+                SelectedIndex = ResolveInt(node, bindings, "selectedIndex", -1),
+                IsOpen = ResolveBool(node, bindings, "open", false),
+                Placeholder = ResolveString(node, bindings, "placeholder", string.Empty),
+                ToggleCommand = ResolveCommand(node, bindings, "toggleCommand", "toggleValue", "toggleData"),
+                SelectCommand = ResolveCommand(node, bindings, "selectCommand", "selectValue", "selectData")
+            };
+            dropdown.SetOptions(ResolveString(node, bindings, "options", string.Empty));
+            return dropdown;
+        }
+
+        private static UiElement BuildUniformGrid(UiMarkupNode node, UiContext context, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals)
+        {
+            var grid = new UniformGrid
+            {
+                Rows = ResolveInt(node, bindings, "rows", 0),
+                Columns = ResolveInt(node, bindings, "columns", 0),
+                Spacing = ResolveFloat(node, bindings, "spacing", 0f)
+            };
+            AddChildren(grid, node, context, bindings, visuals);
+            return grid;
+        }
+
+        private static UiElement BuildWrapPanel(UiMarkupNode node, UiContext context, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals)
+        {
+            var wrap = new WrapPanel
+            {
+                Orientation = ResolveOrientation(node, bindings, "orientation", UiOrientation.Horizontal),
+                ItemSpacing = ResolveFloat(node, bindings, "itemSpacing", 0f),
+                LineSpacing = ResolveFloat(node, bindings, "lineSpacing", 0f)
+            };
+            AddChildren(wrap, node, context, bindings, visuals);
+            return wrap;
+        }
+
+        private static UiElement BuildRepeatButton(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new RepeatButton
+            {
+                Text = ResolveString(node, bindings, "text", string.Empty),
+                Font = ResolveString(node, bindings, "font", "Monospace"),
+                Scale = ResolveFloat(node, bindings, "scale", 0.42f),
+                Padding = ResolveThickness(node, bindings, "padding", new UiThickness(2f)),
+                Alignment = ResolveTextAlignment(node, bindings, "alignment", TextAlignment.CENTER),
+                Command = ResolveCommand(node, bindings)
+            };
+        }
+
+        private static UiElement BuildRectangle(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new RectangleShape
+            {
+                Fill = ResolveColor(node, bindings, "fill", Color.Transparent),
+                Stroke = ResolveColor(node, bindings, "stroke", Color.Transparent),
+                StrokeThickness = ResolveFloat(node, bindings, "strokeThickness", 0f)
+            };
+        }
+
+        private static UiElement BuildEllipse(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new EllipseShape
+            {
+                Fill = ResolveColor(node, bindings, "fill", Color.Transparent),
+                Stroke = ResolveColor(node, bindings, "stroke", Color.Transparent),
+                StrokeThickness = ResolveFloat(node, bindings, "strokeThickness", 0f)
+            };
+        }
+
+        private static UiElement BuildLine(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            return new LineShape
+            {
+                Stroke = ResolveColor(node, bindings, "stroke", Color.Transparent),
+                StrokeThickness = ResolveFloat(node, bindings, "strokeThickness", 1f),
+                X1 = ResolveFloat(node, bindings, "x1", 0f),
+                Y1 = ResolveFloat(node, bindings, "y1", 0.5f),
+                X2 = ResolveFloat(node, bindings, "x2", 1f),
+                Y2 = ResolveFloat(node, bindings, "y2", 0.5f)
+            };
+        }
+
+        private static UiElement BuildChart(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            var chart = new Chart
+            {
+                Kind = ResolveChartKind(node, bindings, "kind", ChartKind.Line),
+                Minimum = ResolveFloat(node, bindings, "minimum", 0f),
+                Maximum = ResolveFloat(node, bindings, "maximum", 0f),
+                LineColor = ResolveColor(node, bindings, "lineColor", Color.Transparent),
+                FillColor = ResolveColor(node, bindings, "fillColor", Color.Transparent),
+                ShowFrame = ResolveBool(node, bindings, "showFrame", true)
+            };
+            chart.SetValues(ResolveString(node, bindings, "values", string.Empty));
+            return chart;
+        }
+
+        private static UiElement BuildTable(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            var table = new Table
+            {
+                ShowHeader = ResolveBool(node, bindings, "showHeader", true),
+                RowHeight = ResolveFloat(node, bindings, "rowHeight", 22f)
+            };
+            table.SetColumns(ResolveString(node, bindings, "columns", string.Empty));
+            table.SetRows(ResolveString(node, bindings, "rows", string.Empty));
+            return table;
+        }
+
+        private static UiElement BuildDetailsView(UiMarkupNode node, UiXmlBindings bindings)
+        {
+            var details = new DetailsView
+            {
+                RowHeight = ResolveFloat(node, bindings, "rowHeight", 20f),
+                LabelWeight = ResolveFloat(node, bindings, "labelWeight", 0.45f)
+            };
+            details.SetRows(ResolveString(node, bindings, "rows", string.Empty));
+            return details;
+        }
+
+        private static UiElement BuildGroupBox(UiMarkupNode node, UiContext context, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals)
+        {
+            var group = new GroupBox
+            {
+                Header = ResolveString(node, bindings, "header", string.Empty),
+                Background = ResolveColor(node, bindings, "background", Color.Transparent),
+                BorderColor = ResolveColor(node, bindings, "border", Color.Transparent),
+                Padding = ResolveThickness(node, bindings, "padding", new UiThickness(6f))
+            };
+            group.Content = BuildSingleChild(node, context, bindings, visuals);
+            return group;
+        }
+
+        private static UiElement BuildExpander(UiMarkupNode node, UiContext context, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals)
+        {
+            var expander = new Expander
+            {
+                Header = ResolveString(node, bindings, "header", string.Empty),
+                IsExpanded = ResolveBool(node, bindings, "expanded", false),
+                ToggleCommand = ResolveCommand(node, bindings)
+            };
+            expander.Content = BuildSingleChild(node, context, bindings, visuals);
+            return expander;
+        }
+
+        private static UiElement BuildTabControl(UiMarkupNode node, UiContext context, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals)
+        {
+            var tabs = new TabControl
+            {
+                SelectedIndex = ResolveInt(node, bindings, "selectedIndex", 0),
+                Command = ResolveCommand(node, bindings)
+            };
+            for (var i = 0; i < node.Children.Count; i++)
+            {
+                var child = BuildElement(node.Children[i], context, bindings, visuals);
+                var item = child as TabItem;
+                if (item != null)
+                {
+                    tabs.AddChild(item);
+                }
+            }
+            return tabs;
+        }
+
+        private static UiElement BuildTabItem(UiMarkupNode node, UiContext context, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals)
+        {
+            var item = new TabItem
+            {
+                Header = ResolveString(node, bindings, "header", string.Empty)
+            };
+            item.Content = BuildSingleChild(node, context, bindings, visuals);
+            return item;
+        }
+
+        private static UiElement BuildDialog(UiMarkupNode node, UiContext context, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals)
+        {
+            var dialog = new Dialog
+            {
+                Title = ResolveString(node, bindings, "title", string.Empty),
+                ShowClose = ResolveBool(node, bindings, "showClose", true),
+                DismissOnBackdrop = ResolveBool(node, bindings, "dismissOnBackdrop", true),
+                PanelWidth = ResolveFloat(node, bindings, "panelWidth", -1f),
+                PanelHeight = ResolveFloat(node, bindings, "panelHeight", -1f),
+                Background = ResolveColor(node, bindings, "background", Color.Transparent),
+                BorderColor = ResolveColor(node, bindings, "border", Color.Transparent),
+                BackdropColor = ResolveColor(node, bindings, "backdropColor", Color.Transparent),
+                Padding = ResolveThickness(node, bindings, "padding", new UiThickness(8f)),
+                CloseCommand = ResolveCommand(node, bindings, "closeCommand", "closeValue", "closeData")
+            };
+            dialog.Content = BuildSingleChild(node, context, bindings, visuals);
+            return dialog;
+        }
+
+        private static ChartKind ResolveChartKind(UiMarkupNode node, UiXmlBindings bindings, string key, ChartKind fallback)
+        {
+            var raw = ResolveString(node, bindings, key, string.Empty);
+            switch ((raw ?? string.Empty).ToLowerInvariant())
+            {
+                case "line":
+                    return ChartKind.Line;
+                case "bar":
+                    return ChartKind.Bar;
+                default:
+                    return fallback;
+            }
+        }
+
         private static UiElement BuildCustomVisual(UiMarkupNode node, UiXmlBindings bindings, Dictionary<string, Action<MySpriteDrawFrame, Vector2, UiRect, UiContext>> visuals)
         {
             var visualKey = ResolveString(node, bindings, "visual", string.Empty);
@@ -599,6 +1011,7 @@ namespace AGS
             element.Visibility = ResolveBool(node, bindings, "collapsed", false) ? UiVisibility.Collapsed : UiVisibility.Visible;
             element.ClipToBounds = ResolveBool(node, bindings, "clip", element.ClipToBounds);
             element.Focusable = ResolveBool(node, bindings, "focusable", element.Focusable);
+            element.ZIndex = ResolveInt(node, bindings, "zIndex", element.ZIndex);
             element.GridRow = ResolveInt(node, bindings, "row", element.GridRow);
             element.GridColumn = ResolveInt(node, bindings, "column", element.GridColumn);
             element.GridRowSpan = Math.Max(1, ResolveInt(node, bindings, "rowSpan", element.GridRowSpan));

@@ -14,6 +14,7 @@ namespace AGS
         public TextAlignment Alignment { get; set; }
         public UiVerticalAlignment TextVerticalAlignment { get; set; }
         public UiThickness Padding { get; set; }
+        public bool Wrap { get; set; }
 
         public TextBlock()
         {
@@ -26,11 +27,26 @@ namespace AGS
 
         protected override Vector2 MeasureCore(Vector2 availableSize, UiContext context)
         {
-            return new Vector2(Width >= 0f ? Width : availableSize.X, Height >= 0f ? Height : Math.Max(24f * context.Theme.LayoutScale, context.Theme.SpacingLg * 2f));
+            var width = Width >= 0f ? Width : availableSize.X;
+            if (Wrap && Height < 0f && !string.IsNullOrEmpty(Text))
+            {
+                var inner = Math.Max(1f, width - Padding.Horizontal);
+                var lineCount = Math.Max(1, UiRenderer.CountWrappedLines(Text, inner, Scale, Font));
+                var lineHeight = Math.Max(12f, 30f * Scale);
+                return new Vector2(width, (lineCount * lineHeight) + Padding.Vertical);
+            }
+
+            return new Vector2(width, Height >= 0f ? Height : Math.Max(24f * context.Theme.LayoutScale, context.Theme.SpacingLg * 2f));
         }
 
         protected override void RenderSelf(MySpriteDrawFrame frame, Vector2 origin, UiContext context)
         {
+            if (Wrap)
+            {
+                UiRenderer.DrawParagraph(frame, origin, ArrangedRect.Deflate(Padding), Text ?? string.Empty, Font, Scale, Color, Alignment);
+                return;
+            }
+
             UiRenderer.DrawLabel(frame, origin, new UiLabel
             {
                 Bounds = ArrangedRect,
@@ -120,6 +136,7 @@ namespace AGS
                 Scale = Scale,
                 IsHovered = State == UiControlState.Hover || State == UiControlState.Focused,
                 IsPressed = State == UiControlState.Pressed,
+                IsDisabled = State == UiControlState.Disabled,
                 Background = style.Background,
                 HoverBackground = style.HoverBackground,
                 PressedBackground = style.PressedBackground,
@@ -129,6 +146,21 @@ namespace AGS
         }
 
         public override UiCommand OnClick(UiContext context)
+        {
+            return IsEnabled ? Command : null;
+        }
+    }
+
+    // Fires its command once on press and then again every input frame it stays held
+    // (repeat cadence = the surface update rate). Ideal for +/- nudges and scrolling.
+    public class RepeatButton : Button
+    {
+        public RepeatButton()
+        {
+            CapturesPointer = true;
+        }
+
+        public override UiCommand OnDrag(UiContext context)
         {
             return IsEnabled ? Command : null;
         }
@@ -232,7 +264,10 @@ namespace AGS
             {
                 var childHeight = Math.Max(0f, Items[i].DesiredSize.Y - Items[i].Margin.Vertical);
                 Items[i].Arrange(new UiRect(rect.X, y, rect.Width, childHeight), context);
-                y += Items[i].ArrangedRect.Height;
+                // Advance past the item's margin too (matches StackPanel); otherwise list
+                // items with a vertical margin — e.g. the launcher rows' rowGap — render
+                // squeezed together with no gap between them.
+                y += Items[i].ArrangedRect.Height + Items[i].Margin.Vertical;
             }
         }
     }
@@ -291,6 +326,7 @@ namespace AGS
                 Scale = Scale,
                 IsHovered = State == UiControlState.Hover || State == UiControlState.Focused,
                 IsPressed = State == UiControlState.Pressed,
+                IsDisabled = State == UiControlState.Disabled,
                 Background = IsChecked ? style.HoverBackground : style.Background,
                 HoverBackground = style.HoverBackground,
                 PressedBackground = style.PressedBackground,
@@ -361,6 +397,7 @@ namespace AGS
         public Slider()
         {
             Focusable = true;
+            CapturesPointer = true;
             MaxValue = 100;
         }
 
@@ -386,6 +423,16 @@ namespace AGS
 
         public override UiCommand OnClick(UiContext context)
         {
+            return ComputeCommand(context);
+        }
+
+        public override UiCommand OnDrag(UiContext context)
+        {
+            return ComputeCommand(context);
+        }
+
+        private UiCommand ComputeCommand(UiContext context)
+        {
             if (Command == null)
             {
                 return null;
@@ -408,6 +455,7 @@ namespace AGS
         public ScrollBar()
         {
             Focusable = true;
+            CapturesPointer = true;
             Vertical = true;
         }
 
@@ -436,6 +484,16 @@ namespace AGS
         }
 
         public override UiCommand OnClick(UiContext context)
+        {
+            return ComputeCommand(context);
+        }
+
+        public override UiCommand OnDrag(UiContext context)
+        {
+            return ComputeCommand(context);
+        }
+
+        private UiCommand ComputeCommand(UiContext context)
         {
             if (Command == null || MaxValue <= 0)
             {
