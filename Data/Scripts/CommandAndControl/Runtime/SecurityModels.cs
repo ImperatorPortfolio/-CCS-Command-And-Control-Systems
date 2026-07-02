@@ -83,6 +83,11 @@ namespace AGS
         Weapon,
         Cargo,
         Gyro,
+        Conveyor,
+        Connector,
+        Antenna,
+        Medical,
+        Production,
         Other
     }
 
@@ -178,6 +183,9 @@ namespace AGS
         public List<ShipBlockGeometry> Blocks { get; private set; }
         public List<ShipCell> Cells { get; private set; }
         public List<ShipDeviceMarker> Devices { get; private set; }
+        // Bumped whenever the geometry is replaced, so renderers can cache derived data
+        // (e.g. the extracted wireframe) and rebuild it only when the hull changes.
+        public int Version { get; private set; }
         public int MinX { get; private set; }
         public int MinY { get; private set; }
         public int MinZ { get; private set; }
@@ -201,6 +209,7 @@ namespace AGS
             Cells.Clear();
             Devices.Clear();
             ResetBounds();
+            Version++;
         }
 
         public void AddBlock(ShipBlockGeometry block)

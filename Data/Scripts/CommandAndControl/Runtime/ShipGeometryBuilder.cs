@@ -94,7 +94,8 @@ namespace AGS
 
         // Classifies a non-armour block into a specialty category by its object-builder type
         // (e.g. "MyObjectBuilder_Thrust"). Returns false for blocks we don't mark (lights,
-        // conveyors, passages, etc.) so the map stays readable.
+        // passages, etc.) so the map stays readable. Order matters where type names share
+        // tokens: Conveyor before Connector (tubes are "ConveyorConnector").
         private static bool TryResolveDevice(IMySlimBlock slim, out ShipDeviceCategory category)
         {
             category = ShipDeviceCategory.Other;
@@ -112,6 +113,11 @@ namespace AGS
             if (Has(typeId, "Turret") || Has(typeId, "Gatling") || Has(typeId, "Missile") || Has(typeId, "Launcher") || Has(typeId, "Gun")) { category = ShipDeviceCategory.Weapon; return true; }
             if (Has(typeId, "CargoContainer")) { category = ShipDeviceCategory.Cargo; return true; }
             if (Has(typeId, "Gyro")) { category = ShipDeviceCategory.Gyro; return true; }
+            if (Has(typeId, "Conveyor")) { category = ShipDeviceCategory.Conveyor; return true; } // tubes, junctions, sorters
+            if (Has(typeId, "ShipConnector")) { category = ShipDeviceCategory.Connector; return true; }
+            if (Has(typeId, "Antenna") || Has(typeId, "Beacon")) { category = ShipDeviceCategory.Antenna; return true; }
+            if (Has(typeId, "MedicalRoom") || Has(typeId, "SurvivalKit")) { category = ShipDeviceCategory.Medical; return true; }
+            if (Has(typeId, "Refinery") || Has(typeId, "Assembler")) { category = ShipDeviceCategory.Production; return true; }
             return false;
         }
 
@@ -121,29 +127,41 @@ namespace AGS
         }
         public static ShipShapeId ResolveShapeId(string subtypeName)
         {
-            // Scope: only the basic 1x1 large armour slope (light + heavy) is drawn as a
-            // sloped face for now. Every other armour shape (corners, 2x1, variants) renders
-            // as its voxel cube until its own template is added, so nothing is forced into
-            // the wrong shape.
-            if (string.Equals(subtypeName, "LargeBlockArmorSlope", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(subtypeName, "LargeHeavyBlockArmorSlope", StringComparison.OrdinalIgnoreCase))
-            {
-                return ShipShapeId.Slope;
-            }
-
-            if (string.Equals(subtypeName, "LargeBlockArmorSlope2Base", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(subtypeName, "LargeHeavyBlockArmorSlope2Base", StringComparison.OrdinalIgnoreCase))
+            // Vanilla armour subtypes all follow (Large|Small)(Heavy)?BlockArmor<Shape>, so
+            // matching the shape suffix covers the grid-size and light/heavy variants in one
+            // go. Anything unrecognised (rounded, half, 2x1 corners, modded) renders as its
+            // voxel cube, so nothing is forced into the wrong shape.
+            if (EndsWith(subtypeName, "ArmorSlope2Base"))
             {
                 return ShipShapeId.Slope2x1;
             }
 
-            if (string.Equals(subtypeName, "LargeBlockArmorSlope2Tip", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(subtypeName, "LargeHeavyBlockArmorSlope2Tip", StringComparison.OrdinalIgnoreCase))
+            if (EndsWith(subtypeName, "ArmorSlope2Tip"))
             {
                 return ShipShapeId.Slope2x1Tip;
             }
 
+            if (EndsWith(subtypeName, "ArmorCornerInv"))
+            {
+                return ShipShapeId.InvertedCorner;
+            }
+
+            if (EndsWith(subtypeName, "ArmorCorner"))
+            {
+                return ShipShapeId.Corner;
+            }
+
+            if (EndsWith(subtypeName, "ArmorSlope"))
+            {
+                return ShipShapeId.Slope;
+            }
+
             return ShipShapeId.Cube;
+        }
+
+        private static bool EndsWith(string value, string suffix)
+        {
+            return value != null && value.EndsWith(suffix, StringComparison.OrdinalIgnoreCase);
         }
 
         private static BoundingBoxI GetLocalBounds(IMyCubeGrid grid, Vector3I min, Vector3I max, MatrixD worldToLocal, double scale)
@@ -181,10 +199,13 @@ namespace AGS
 
         private static int ResolveRight(int forward, int up)
         {
+            // SE convention: Right = Forward x Up (identity orientation: forward -Z,
+            // up +Y -> right +X). Up x Forward gives LEFT, which mirrors asymmetric
+            // shapes such as corners.
             var forwardDir = Base6Directions.GetIntVector((Base6Directions.Direction)forward);
             var upDir = Base6Directions.GetIntVector((Base6Directions.Direction)up);
             Vector3I rightDir;
-            Vector3I.Cross(ref upDir, ref forwardDir, out rightDir);
+            Vector3I.Cross(ref forwardDir, ref upDir, out rightDir);
             return (int)Base6Directions.GetDirection(rightDir);
         }
 

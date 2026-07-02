@@ -247,7 +247,7 @@ namespace AGS
 
             var transform = CreateTransform(context);
             var access = BuildFeature(context.Blocks, transform, SecurityFeatureKind.Access, "Access", "Hatches, doors, and security barriers", IsAccessBlock);
-            var airlocks = BuildFeature(context.Blocks, transform, SecurityFeatureKind.Airlocks, "Airlocks", "Vent and pressurization control nodes", delegate(IMyCubeBlock block) { return block is IMyAirVent; });
+            var airlocks = BuildFeature(context.Blocks, transform, SecurityFeatureKind.Airlocks, "Airlocks", "Vent and pressurization control nodes", delegate(IMyCubeBlock block) { return block is SpaceEngineers.Game.ModAPI.IMyAirVent; });
             var turrets = BuildFeature(context.Blocks, transform, SecurityFeatureKind.Turrets, "Turrets", "Defensive turret coverage", delegate(IMyCubeBlock block) { return block is IMyLargeTurretBase; });
             var sensors = BuildFeature(context.Blocks, transform, SecurityFeatureKind.Sensors, "Sensors", "Motion and trigger detection", delegate(IMyCubeBlock block) { return block is IMySensorBlock; });
             var cameras = BuildFeature(context.Blocks, transform, SecurityFeatureKind.Cameras, "Cameras", "Surveillance and targeting optics", delegate(IMyCubeBlock block) { return block is IMyCameraBlock; });
@@ -359,7 +359,7 @@ namespace AGS
                 return true;
             }
 
-            return block is IMyTimerBlock;
+            return block is SpaceEngineers.Game.ModAPI.IMyTimerBlock;
         }
 
         private static void AddFeatureState(SecurityState security, SecurityFeatureGroup group)
